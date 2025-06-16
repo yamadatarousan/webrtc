@@ -2,8 +2,7 @@ import { socketService } from './socketService';
 import type { 
   RTCOfferMessage, 
   RTCAnswerMessage, 
-  RTCIceCandidateMessage,
-  DEFAULT_WEBRTC_CONFIG 
+  RTCIceCandidateMessage
 } from '../types/webrtcTypes';
 
 // WebRTC設定
@@ -230,7 +229,7 @@ export class WebRTCService {
 
   // 全ての接続を終了
   closeAllConnections(): void {
-    this.peerConnections.forEach((peerConnection, userId) => {
+    this.peerConnections.forEach((peerConnection) => {
       peerConnection.close();
     });
     this.peerConnections.clear();

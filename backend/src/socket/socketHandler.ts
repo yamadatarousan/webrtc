@@ -194,20 +194,26 @@ export class SocketHandler {
 
       // 指定されたユーザーまたは同じルームの他のユーザーにOfferを転送
       if (message.to) {
-        socket.to(message.to).emit(SOCKET_EVENTS.OFFER, {
-          ...message,
-          from: socket.userId,
-        });
+        // ユーザーIDからSocket IDを検索
+        const targetSocketId = this.findSocketIdByUserId(message.to);
+        if (targetSocketId) {
+          this.io.to(targetSocketId).emit(SOCKET_EVENTS.OFFER, {
+            ...message,
+            from: socket.userId,
+          });
+          console.log(`✅ Offer送信成功: ${socket.userId} -> ${message.to} (Socket: ${targetSocketId})`);
+        } else {
+          console.warn(`❌ Offer送信失敗: ユーザー ${message.to} が見つかりません`);
+        }
       } else {
         socket.to(socket.roomId).emit(SOCKET_EVENTS.OFFER, {
           ...message,
           from: socket.userId,
         });
+        console.log(`✅ Offer広告送信: ${socket.userId} -> ルーム内全員`);
       }
-
-      console.log(`Offer送信: ${socket.userId} -> ${message.to || 'ルーム内全員'}`);
     } catch (error) {
-      console.error('Offer処理エラー:', error);
+      console.error('❌ Offer処理エラー:', error);
       const webrtcError: WebRTCError = {
         code: 'OFFER_ERROR',
         message: 'Offerの処理に失敗しました',
@@ -225,15 +231,19 @@ export class SocketHandler {
 
       // 指定されたユーザーにAnswerを転送
       if (message.to) {
-        socket.to(message.to).emit(SOCKET_EVENTS.ANSWER, {
-          ...message,
-          from: socket.userId,
-        });
+        const targetSocketId = this.findSocketIdByUserId(message.to);
+        if (targetSocketId) {
+          this.io.to(targetSocketId).emit(SOCKET_EVENTS.ANSWER, {
+            ...message,
+            from: socket.userId,
+          });
+          console.log(`✅ Answer送信成功: ${socket.userId} -> ${message.to} (Socket: ${targetSocketId})`);
+        } else {
+          console.warn(`❌ Answer送信失敗: ユーザー ${message.to} が見つかりません`);
+        }
       }
-
-      console.log(`Answer送信: ${socket.userId} -> ${message.to}`);
     } catch (error) {
-      console.error('Answer処理エラー:', error);
+      console.error('❌ Answer処理エラー:', error);
       const webrtcError: WebRTCError = {
         code: 'ANSWER_ERROR',
         message: 'Answerの処理に失敗しました',
@@ -251,20 +261,25 @@ export class SocketHandler {
 
       // 指定されたユーザーまたは同じルームの他のユーザーにICE candidateを転送
       if (message.to) {
-        socket.to(message.to).emit(SOCKET_EVENTS.ICE_CANDIDATE, {
-          ...message,
-          from: socket.userId,
-        });
+        const targetSocketId = this.findSocketIdByUserId(message.to);
+        if (targetSocketId) {
+          this.io.to(targetSocketId).emit(SOCKET_EVENTS.ICE_CANDIDATE, {
+            ...message,
+            from: socket.userId,
+          });
+          console.log(`✅ ICE Candidate送信成功: ${socket.userId} -> ${message.to} (Socket: ${targetSocketId})`);
+        } else {
+          console.warn(`❌ ICE Candidate送信失敗: ユーザー ${message.to} が見つかりません`);
+        }
       } else {
         socket.to(socket.roomId).emit(SOCKET_EVENTS.ICE_CANDIDATE, {
           ...message,
           from: socket.userId,
         });
+        console.log(`✅ ICE Candidate広告送信: ${socket.userId} -> ルーム内全員`);
       }
-
-      console.log(`ICE Candidate送信: ${socket.userId} -> ${message.to || 'ルーム内全員'}`);
     } catch (error) {
-      console.error('ICE Candidate処理エラー:', error);
+      console.error('❌ ICE Candidate処理エラー:', error);
       const webrtcError: WebRTCError = {
         code: 'ICE_CANDIDATE_ERROR',
         message: 'ICE Candidateの処理に失敗しました',
@@ -289,5 +304,15 @@ export class SocketHandler {
   // 接続中のユーザー情報を取得するAPI（デバッグ用）
   public getConnectedUsers(): User[] {
     return Array.from(connectedUsers.values());
+  }
+
+  // ユーザーIDからSocket IDを検索するヘルパーメソッド
+  private findSocketIdByUserId(userId: string): string | null {
+    for (const [socketId, user] of connectedUsers.entries()) {
+      if (user.id === userId) {
+        return socketId;
+      }
+    }
+    return null;
   }
 } 

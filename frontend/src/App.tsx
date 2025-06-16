@@ -2,7 +2,7 @@ import React from 'react';
 import { VideoCall } from './components/VideoCall';
 import './App.css';
 
-function App() {
+function App(): React.JSX.Element {
   return (
     <div className="App">
       <VideoCall />

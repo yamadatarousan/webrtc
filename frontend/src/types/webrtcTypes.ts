@@ -148,11 +148,11 @@ export const DEFAULT_WEBRTC_CONFIG: WebRTCConfig = {
 };
 
 // メディアストリームのデフォルト設定
-export const DEFAULT_MEDIA_CONSTRAINTS: MediaStreamConfig = {
+export const DEFAULT_MEDIA_CONSTRAINTS: MediaStreamConstraints = {
   video: {
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
-    frameRate: { ideal: 30 },
+    width: { ideal: 640 },
+    height: { ideal: 480 },
+    frameRate: { ideal: 15 },
   },
   audio: {
     echoCancellation: true,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { socketService } from '../services/socketService';
 import { webrtcService } from '../services/webrtcService';
 import type { 
@@ -7,7 +7,6 @@ import type {
   User
 } from '../types/webrtcTypes';
 import { 
-  DEFAULT_WEBRTC_CONFIG,
   DEFAULT_MEDIA_CONSTRAINTS 
 } from '../types/webrtcTypes';
 
@@ -115,20 +114,68 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
   // ローカルメディアストリームを取得
   const startLocalStream = async () => {
     try {
+      console.log('📹 メディアストリーム取得開始...');
+      console.log('📹 使用する制約:', DEFAULT_MEDIA_CONSTRAINTS);
+      
       const stream = await navigator.mediaDevices.getUserMedia(DEFAULT_MEDIA_CONSTRAINTS);
+      console.log('📹 メディアストリーム取得成功:', stream);
+      console.log('📹 ビデオトラック数:', stream.getVideoTracks().length);
+      console.log('📹 オーディオトラック数:', stream.getAudioTracks().length);
+      
+      // すべてのトラックの状態をログ出力
+      stream.getVideoTracks().forEach((track, index) => {
+        console.log(`📹 ビデオトラック ${index}:`, {
+          enabled: track.enabled,
+          readyState: track.readyState,
+          label: track.label
+        });
+      });
+      
       setLocalStream(stream);
       
       // WebRTCサービスにローカルストリームを設定
       webrtcService.setLocalStream(stream);
       
+      // ビデオ要素にストリームを設定 - 非同期で確実に設定
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        console.log('📹 ローカルビデオ要素にストリーム設定完了');
+        
+        // ビデオの読み込み完了を待つ
+        localVideoRef.current.onloadedmetadata = () => {
+          console.log('📹 ビデオメタデータ読み込み完了');
+          if (localVideoRef.current) {
+            localVideoRef.current.play().catch(e => {
+              console.warn('📹 ビデオ自動再生失敗:', e);
+            });
+          }
+        };
       }
       
-      console.log('ローカルストリーム取得成功');
+      console.log('✅ ローカルストリーム設定完了');
     } catch (error) {
-      console.error('メディアアクセスエラー:', error);
-      alert('カメラ・マイクのアクセスに失敗しました。ブラウザの設定を確認してください。');
+      console.error('❌ メディアアクセスエラー:', error);
+      // より詳細なエラー情報を表示
+      if (error instanceof DOMException) {
+        let errorMessage = '';
+        switch (error.name) {
+          case 'NotAllowedError':
+            errorMessage = 'カメラ・マイクのアクセスが拒否されました。ブラウザの設定から許可してください。';
+            break;
+          case 'NotFoundError':
+            errorMessage = 'カメラまたはマイクが見つかりません。デバイスが接続されているか確認してください。';
+            break;
+          case 'NotReadableError':
+            errorMessage = 'カメラまたはマイクが他のアプリケーションで使用中です。';
+            break;
+          default:
+            errorMessage = `カメラ・マイクのアクセスに失敗しました: ${error.message}`;
+        }
+        alert(errorMessage);
+      } else {
+        alert(`メディアアクセスエラー: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      throw error;
     }
   };
 

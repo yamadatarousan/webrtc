@@ -1,5 +1,26 @@
 // WebRTCアプリケーション用の共通型定義
 
+// 独自のWebRTC型定義（ブラウザ環境とNode.js環境両方で使用可能）
+export interface SessionDescriptionInit {
+  type?: 'offer' | 'answer' | 'pranswer' | 'rollback';
+  sdp?: string;
+}
+
+export interface IceCandidateInit {
+  candidate?: string;
+  sdpMLineIndex?: number | null;
+  sdpMid?: string | null;
+}
+
+export interface MediaTrackConstraints {
+  width?: number | { ideal: number; min?: number; max?: number };
+  height?: number | { ideal: number; min?: number; max?: number };
+  frameRate?: number | { ideal: number; min?: number; max?: number };
+  echoCancellation?: boolean;
+  noiseSuppression?: boolean;
+  autoGainControl?: boolean;
+}
+
 // シグナリングメッセージの種類
 export type SignalingMessageType = 
   | 'offer'
@@ -25,18 +46,18 @@ export interface SignalingMessage {
 // WebRTCオファー・アンサー用のメッセージ
 export interface RTCOfferMessage extends SignalingMessage {
   type: 'offer';
-  data: RTCSessionDescriptionInit;
+  data: SessionDescriptionInit;
 }
 
 export interface RTCAnswerMessage extends SignalingMessage {
   type: 'answer';
-  data: RTCSessionDescriptionInit;
+  data: SessionDescriptionInit;
 }
 
 // ICE候補用のメッセージ
 export interface RTCIceCandidateMessage extends SignalingMessage {
   type: 'ice-candidate';
-  data: RTCIceCandidateInit;
+  data: IceCandidateInit;
 }
 
 // ユーザー情報

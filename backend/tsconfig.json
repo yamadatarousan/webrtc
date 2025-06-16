@@ -4,7 +4,7 @@
     "module": "commonjs",
     "lib": ["es2018"],
     "outDir": "./dist",
-    "rootDir": "./",
+    "rootDir": "../",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -30,7 +30,8 @@
     "node_modules",
     "dist",
     "**/*.test.ts",
-    "**/*.spec.ts"
+    "**/*.spec.ts",
+    "../frontend/**/*"
   ],
   "ts-node": {
     "files": true,

@@ -1,5 +1,4 @@
 import io from 'socket.io-client';
-import type { Socket } from 'socket.io-client';
 import type { 
   SignalingMessage, 
   ConnectionState,
@@ -9,28 +8,6 @@ import type {
   WebRTCError
 } from '../types/webrtcTypes';
 import { SOCKET_EVENTS } from '../types/webrtcTypes';
-
-// 型定義
-interface ConnectedUser {
-  id: string;
-  name: string;
-  roomId: string;
-}
-
-interface WebRTCOfferData {
-  from: string;
-  offer: RTCSessionDescriptionInit;
-}
-
-interface WebRTCAnswerData {
-  from: string;
-  answer: RTCSessionDescriptionInit;
-}
-
-interface ICECandidateData {
-  from: string;
-  candidate: RTCIceCandidateInit;
-}
 
 export class SocketService {
   private socket: any | null = null;

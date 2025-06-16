@@ -106,7 +106,7 @@ export class SocketHandler {
   constructor(server: any) {
     this.io = new Server(server, {
       cors: {
-        origin: process.env.CLIENT_URL || "http://localhost:5173",
+        origin: process.env.FRONTEND_URL || "http://localhost:5173",
         methods: ["GET", "POST"],
         credentials: true
       }
@@ -138,7 +138,13 @@ export class SocketHandler {
        * ユーザーをルームに追加します。満員の場合はエラーを返します。
        */
       socket.on(SOCKET_EVENTS.JOIN_ROOM, (request: JoinRoomRequest) => {
+        console.log(`🔍 JOIN_ROOM イベント受信 - Socket ID: ${socket.id}`);
         this.handleJoinRoom(socket, request);
+      });
+
+      // デバッグ用：すべてのイベントをキャッチ
+      socket.onAny((eventName: string, ...args: any[]) => {
+        console.log(`📡 受信イベント: ${eventName}`, args);
       });
 
       /**
@@ -226,10 +232,16 @@ export class SocketHandler {
    */
   private handleJoinRoom(socket: TypedSocket, request: JoinRoomRequest): void {
     try {
+      console.log('🔍 ルーム参加リクエスト受信:', {
+        socketId: socket.id,
+        request: request
+      });
+
       const { roomId, userName } = request;
 
       // 入力値のバリデーション
       if (!roomId || !userName) {
+        console.error('❌ バリデーションエラー: ルームIDまたはユーザー名が未設定');
         this.sendError(socket, 'INVALID_REQUEST', 'ルームIDとユーザー名は必須です');
         return;
       }

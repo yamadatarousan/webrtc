@@ -19,7 +19,6 @@
 
 import express from 'express';
 import { createServer } from 'http';
-import { Server } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
@@ -39,18 +38,6 @@ const app = express();
  * Socket.ioサーバーと統合するためcreateServerを使用
  */
 const server = createServer(app);
-
-/**
- * Socket.ioサーバーインスタンス
- * WebRTCシグナリングとリアルタイム通信を担当
- */
-const io = new Server(server, {
-  cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
-    methods: ["GET", "POST"],
-    credentials: true
-  }
-});
 
 // ミドルウェアの設定
 
@@ -79,7 +66,9 @@ app.use(express.json());
  * Socket.ioハンドラーの初期化
  * WebRTCシグナリングとチャット機能を提供
  */
-const socketHandler = new SocketHandler(io);
+console.log('🚀 Socket.ioハンドラーを初期化中...');
+const socketHandler = new SocketHandler(server);
+console.log('✅ Socket.ioハンドラー初期化完了');
 
 // APIエンドポイントの定義
 

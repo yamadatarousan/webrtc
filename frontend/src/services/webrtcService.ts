@@ -19,9 +19,27 @@ export class WebRTCService {
   private localStream: MediaStream | null = null;
   private remoteStreams: Map<string, MediaStream> = new Map();
   private listeners: Map<string, Function[]> = new Map();
+  private isSocketListenersSetup: boolean = false;
 
   constructor() {
+    // Socket.ioの初期化を待ってからsetupSocketListenersを呼ぶため、
+    // ここでは呼ばない
+  }
+
+  /**
+   * Socket.ioのイベントリスナーを初期化する
+   * Socket.ioが接続された後に呼び出される必要がある
+   */
+  public initializeSocketListeners(): void {
+    if (this.isSocketListenersSetup) {
+      console.log('📡 Socket.ioリスナーは既に設定済み');
+      return;
+    }
+    
+    console.log('📡 Socket.ioリスナーを設定中...');
     this.setupSocketListeners();
+    this.isSocketListenersSetup = true;
+    console.log('✅ Socket.ioリスナー設定完了');
   }
 
   // Socket.ioのイベントリスナーを設定
@@ -39,12 +57,7 @@ export class WebRTCService {
       this.handleIceCandidate(data);
     });
 
-    // ユーザー参加/退出イベント
-    socketService.on('user-joined', (user: any) => {
-      console.log('🔗 新しいユーザーが参加、WebRTC接続を開始:', user);
-      this.initiateCall(user.id);
-    });
-
+    // ユーザー退出イベントのみ監視（接続開始はVideoCallコンポーネントで制御）
     socketService.on('user-left', (userId: string) => {
       console.log('🔗 ユーザーが退出、WebRTC接続を終了:', userId);
       this.closePeerConnection(userId);
@@ -121,8 +134,8 @@ export class WebRTCService {
       socketService.sendMessage('offer', {
         type: 'offer',
         data: offer,
-        to: targetUserId,
-        from: socketService.getCurrentUserId(),
+        toUserId: targetUserId,
+        fromUserId: socketService.getCurrentUserId(),
       });
 
       console.log('📤 Offerを送信:', targetUserId);
@@ -141,8 +154,8 @@ export class WebRTCService {
         socketService.sendMessage('ice-candidate', {
           type: 'ice-candidate',
           data: event.candidate,
-          to: userId,
-          from: socketService.getCurrentUserId(),
+          toUserId: userId,
+          fromUserId: socketService.getCurrentUserId(),
         });
         console.log('📤 ICE候補を送信:', userId);
       }
@@ -189,13 +202,13 @@ export class WebRTCService {
 
   // Offerを受信したときの処理
   private async handleOffer(data: RTCOfferMessage): Promise<void> {
-    const { from, data: offer } = data;
-    console.log('📥 Offerを受信:', from);
+    const { fromUserId, data: offer } = data;
+    console.log('📥 Offerを受信:', fromUserId);
 
     try {
       // 既存の接続があるかチェック
-      if (this.peerConnections.has(from!)) {
-        const existingConnection = this.peerConnections.get(from!);
+      if (this.peerConnections.has(fromUserId!)) {
+        const existingConnection = this.peerConnections.get(fromUserId!);
         console.log('🔍 既存接続の状態:', {
           signalingState: existingConnection?.signalingState,
           iceConnectionState: existingConnection?.iceConnectionState,
@@ -205,22 +218,22 @@ export class WebRTCService {
         // 既存接続が安定している場合は新しいOfferを無視
         if (existingConnection?.connectionState === 'connected' || 
             existingConnection?.iceConnectionState === 'connected') {
-          console.warn('⚠️ Offer無視 - 既存接続が安定:', from);
+          console.warn('⚠️ Offer無視 - 既存接続が安定:', fromUserId);
           return;
         }
 
         // 既存接続をクリーンアップ
-        console.log('🧹 既存接続をクリーンアップ:', from);
-        this.closePeerConnection(from!);
+        console.log('🧹 既存接続をクリーンアップ:', fromUserId);
+        this.closePeerConnection(fromUserId!);
       }
 
       // RTCPeerConnectionを作成
-      const peerConnection = this.createPeerConnection(from!);
-      this.peerConnections.set(from!, peerConnection);
+      const peerConnection = this.createPeerConnection(fromUserId!);
+      this.peerConnections.set(fromUserId!, peerConnection);
 
       // ローカルストリームの準備を待機
       if (!this.localStream) {
-        console.warn('⚠️ Offer処理時にローカルストリームが未設定:', from);
+        console.warn('⚠️ Offer処理時にローカルストリームが未設定:', fromUserId);
         console.log('⏱️ ローカルストリーム設定を待機します...');
         
         // ローカルストリームが設定されるまで待機
@@ -232,10 +245,10 @@ export class WebRTCService {
           return new Promise<void>((resolve, reject) => {
             const checkLocalStream = () => {
               if (this.localStream) {
-                console.log('✅ ローカルストリーム準備完了、Offer処理を続行:', from);
+                console.log('✅ ローカルストリーム準備完了、Offer処理を続行:', fromUserId);
                 resolve();
               } else if (waitTime >= maxWaitTime) {
-                console.error('❌ ローカルストリーム取得タイムアウト:', from);
+                console.error('❌ ローカルストリーム取得タイムアウト:', fromUserId);
                 reject(new Error('Local stream timeout'));
               } else {
                 waitTime += checkInterval;
@@ -249,14 +262,14 @@ export class WebRTCService {
         try {
           await waitForLocalStream();
         } catch (error) {
-          console.error('❌ Offer処理中断 - ローカルストリーム未取得:', from, error);
+          console.error('❌ Offer処理中断 - ローカルストリーム未取得:', fromUserId, error);
           return;
         }
       }
 
       // ローカルストリームをピア接続に追加
       console.log('📤 Offer処理時にローカルストリームをピア接続に追加:', {
-        from,
+        fromUserId,
         tracksCount: this.localStream!.getTracks().length,
         videoTracks: this.localStream!.getVideoTracks().length,
         audioTracks: this.localStream!.getAudioTracks().length
@@ -283,11 +296,11 @@ export class WebRTCService {
       socketService.sendMessage('answer', {
         type: 'answer',
         data: answer,
-        to: from,
-        from: socketService.getCurrentUserId(),
+        toUserId: fromUserId,
+        fromUserId: socketService.getCurrentUserId(),
       });
 
-      console.log('📤 Answerを送信:', from);
+      console.log('📤 Answerを送信:', fromUserId);
     } catch (error) {
       console.error('❌ Offer処理エラー:', error);
     }
@@ -295,11 +308,11 @@ export class WebRTCService {
 
   // Answerを受信したときの処理
   private async handleAnswer(data: RTCAnswerMessage): Promise<void> {
-    const { from, data: answer } = data;
-    console.log('📥 Answerを受信:', from);
+    const { fromUserId, data: answer } = data;
+    console.log('📥 Answerを受信:', fromUserId);
 
     try {
-      const peerConnection = this.peerConnections.get(from!);
+      const peerConnection = this.peerConnections.get(fromUserId!);
       if (peerConnection) {
         // RTCPeerConnectionの状態をチェック
         console.log('🔍 RTCPeerConnection状態:', {
@@ -311,16 +324,16 @@ export class WebRTCService {
         // signalingStateが適切な状態の場合のみAnswerを設定
         if (peerConnection.signalingState === 'have-local-offer') {
           await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-          console.log('✅ Answer処理完了:', from);
+          console.log('✅ Answer処理完了:', fromUserId);
         } else {
           console.warn('⚠️ Answer無視 - 不適切な状態:', {
-            from,
+            fromUserId,
             signalingState: peerConnection.signalingState,
             expected: 'have-local-offer'
           });
         }
       } else {
-        console.warn('⚠️ Answer無視 - ピア接続が見つかりません:', from);
+        console.warn('⚠️ Answer無視 - ピア接続が見つかりません:', fromUserId);
       }
     } catch (error) {
       console.error('❌ Answer処理エラー:', error);
@@ -329,14 +342,14 @@ export class WebRTCService {
 
   // ICE候補を受信したときの処理
   private async handleIceCandidate(data: RTCIceCandidateMessage): Promise<void> {
-    const { from, data: candidate } = data;
-    console.log('📥 ICE候補を受信:', from);
+    const { fromUserId, data: candidate } = data;
+    console.log('📥 ICE候補を受信:', fromUserId);
 
     try {
-      const peerConnection = this.peerConnections.get(from!);
+      const peerConnection = this.peerConnections.get(fromUserId!);
       if (peerConnection) {
         await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log('✅ ICE候補追加完了:', from);
+        console.log('✅ ICE候補追加完了:', fromUserId);
       }
     } catch (error) {
       console.error('❌ ICE候補処理エラー:', error);

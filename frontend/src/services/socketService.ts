@@ -104,6 +104,13 @@ export class SocketService {
   private currentUserId: string | null = null;
 
   /**
+   * イベントリスナーマップ
+   * SocketService独自のイベント管理用
+   * @private
+   */
+  private eventListeners: Map<string, EventCallback[]> = new Map();
+
+  /**
    * プライベートコンストラクタ（シングルトンパターン）
    * 
    * 外部からの直接インスタンス化を防ぎ、
@@ -185,6 +192,8 @@ export class SocketService {
         this.socket.on(SOCKET_EVENTS.CONNECT, () => {
           this.isConnected = true;
           console.log('✅ Socket.io サーバーに接続しました');
+          // 接続状態変更イベントを発火
+          this.emit('connection-state-changed', 'connected');
           resolve();
         });
 
@@ -192,6 +201,8 @@ export class SocketService {
         this.socket.on('connect_error', (error: Error) => {
           this.isConnected = false;
           console.error('❌ Socket.io 接続エラー:', error);
+          // 接続状態変更イベントを発火
+          this.emit('connection-state-changed', 'disconnected');
           reject(error);
         });
 
@@ -199,12 +210,31 @@ export class SocketService {
         this.socket.on(SOCKET_EVENTS.DISCONNECT, (reason: string) => {
           this.isConnected = false;
           console.log('🔌 Socket.io から切断されました:', reason);
+          // 接続状態変更イベントを発火
+          this.emit('connection-state-changed', 'disconnected');
         });
 
         // 再接続イベント
         this.socket.on('reconnect', (attemptNumber: number) => {
           this.isConnected = true;
           console.log(`🔄 Socket.io に再接続しました (試行回数: ${attemptNumber})`);
+          // 接続状態変更イベントを発火
+          this.emit('connection-state-changed', 'connected');
+        });
+
+        // ルーム参加成功イベント
+        this.socket.on(SOCKET_EVENTS.ROOM_JOINED, (response: any) => {
+          // currentUserId を設定
+          if (response.user && response.user.id) {
+            this.currentUserId = response.user.id;
+            console.log(`✅ currentUserId を設定: ${this.currentUserId}`);
+          }
+        });
+
+        // ルーム退出時にcurrentUserIdをクリア
+        this.socket.on(SOCKET_EVENTS.USER_LEFT, () => {
+          this.currentUserId = null;
+          console.log('🚪 currentUserId をクリア');
         });
 
       } catch (error) {
@@ -487,6 +517,17 @@ export class SocketService {
    * ```
    */
   public on(eventName: string, callback: EventCallback): void {
+    // SocketService独自のイベント（connection-state-changed等）
+    if (eventName === 'connection-state-changed') {
+      if (!this.eventListeners.has(eventName)) {
+        this.eventListeners.set(eventName, []);
+      }
+      this.eventListeners.get(eventName)!.push(callback);
+      console.log(`👂 SocketServiceイベントリスナー登録: ${eventName}`);
+      return;
+    }
+
+    // Socket.ioのイベント
     if (!this.socket) {
       console.error('❌ Socket.io が初期化されていません');
       return;
@@ -665,6 +706,25 @@ export class SocketService {
    */
   public isSocketConnected(): boolean {
     return this.isConnected && this.socket?.connected === true;
+  }
+
+  /**
+   * SocketService独自のイベントを発火
+   * 
+   * @param eventName - イベント名
+   * @param data - イベントデータ
+   */
+  private emit(eventName: string, data?: any): void {
+    const listeners = this.eventListeners.get(eventName);
+    if (listeners) {
+      listeners.forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`❌ イベントリスナーエラー [${eventName}]:`, error);
+        }
+      });
+    }
   }
 }
 

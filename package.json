@@ -4,8 +4,12 @@
   "description": "WebRTCビデオ通話アプリのバックエンド",
   "main": "dist/backend/src/index.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node backend/src/index.ts",
-    "build": "tsc",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "nodemon --exec ts-node backend/src/index.ts",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "tsc",
+    "build:frontend": "cd frontend && npm run build",
     "start": "node dist/backend/src/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -33,9 +37,10 @@
     "@types/supertest": "^6.0.2",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "concurrently": "^9.1.3"
   },
   "engines": {
     "node": ">=20.0.0"
   }
-} 
+}

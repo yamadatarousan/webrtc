@@ -82,22 +82,64 @@ interface VideoCallProps {}
  * @since 1.0.0
  */
 export const VideoCall: React.FC<VideoCallProps> = () => {
-  // 状態管理
-  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
-  const [roomId, setRoomId] = useState<string>('');
-  const [userName, setUserName] = useState<string>('');
-  const [isInRoom, setIsInRoom] = useState<boolean>(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [isAudioEnabled, setIsAudioEnabled] = useState<boolean>(true);
-  const [isVideoEnabled, setIsVideoEnabled] = useState<boolean>(true);
-  const [remoteUsers, setRemoteUsers] = useState<User[]>([]);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
-  
-  // チャット関連の状態
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
+  const [isInRoom, setIsInRoom] = useState(false);
+  const [roomId, setRoomId] = useState('room1');
+  const [userName, setUserName] = useState('');
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [remoteUsers, setRemoteUsers] = useState<User[]>([]);
+
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Socket.ioの初期化を最初に実行
+  useEffect(() => {
+    const initializeSocket = async () => {
+      try {
+        console.log('🔌 Socket.io初期化を開始...');
+        await socketService.connect('http://localhost:3001');
+        console.log('✅ Socket.io初期化完了');
+        
+        // Socket.io初期化後にWebRTCServiceのリスナーを設定
+        console.log('📡 WebRTCServiceリスナー初期化を開始...');
+        webrtcService.initializeSocketListeners();
+        console.log('✅ WebRTCServiceリスナー初期化完了');
+        
+        // 接続状態を手動で更新
+        console.log('🔄 接続状態を更新中...');
+        setConnectionState(socketService.getConnectionState());
+        console.log('✅ 接続状態更新完了:', socketService.getConnectionState());
+      } catch (error) {
+        console.error('❌ Socket.io初期化エラー:', error);
+        setConnectionState('disconnected');
+      }
+    };
+
+    initializeSocket();
+  }, []);
+
+  // 接続状態の定期チェック
+  useEffect(() => {
+    const checkConnectionState = () => {
+      const currentState = socketService.getConnectionState();
+      setConnectionState(currentState);
+    };
+
+    // 初回実行
+    checkConnectionState();
+
+    // 1秒間隔で接続状態をチェック
+    const interval = setInterval(checkConnectionState, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // 状態管理
   const [isChatVisible, setIsChatVisible] = useState<boolean>(false);
 
   // Refs
-  const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
 
   // Socket.ioイベントリスナーの設定
@@ -170,7 +212,20 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
 
     const handleError = (error: any) => {
       console.error('エラー:', error);
-      alert(`エラー: ${error.message}`);
+      
+      // エラーの詳細な内容を確認
+      if (error && error.error) {
+        const { code, message } = error.error;
+        console.error('詳細エラー:', { code, message });
+        
+        if (code === 'USER_NOT_FOUND') {
+          alert(`WebRTC接続エラー: ${message}\n\n接続相手が見つかりません。ページを再読み込みしてみてください。`);
+        } else {
+          alert(`エラー (${code}): ${message}`);
+        }
+      } else {
+        alert(`エラー: ${error.message || 'unknown error'}`);
+      }
     };
 
     // イベントリスナーを登録
@@ -437,7 +492,6 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
       // まずルーム参加リクエストを送信（メディアストリーム取得は後で行う）
       const request: JoinRoomRequest = {
         roomId: roomId.trim(),
-        userId: `user-${Date.now()}`, // 簡易的なユーザーID生成
         userName: userName.trim(),
       };
 

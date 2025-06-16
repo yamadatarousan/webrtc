@@ -24,7 +24,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { socketService } from '../services/socketService';
 import type { 
   ChatMessage, 
-  SendChatMessageRequest 
+  SendChatMessageRequest,
+  ChatMessageReceived
 } from '../types/webrtcTypes';
 
 /**
@@ -119,11 +120,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ roomId, isVisible, onToggl
 
   // メッセージ受信の処理
   useEffect(() => {
-    const handleChatMessage = (message: ChatMessage) => {
-      setMessages(prev => [...prev, message]);
+    const handleChatMessage = (data: ChatMessageReceived) => {
+      console.log('📥 チャットメッセージ受信:', data);
+      setMessages(prev => [...prev, data.message]);
       
       // パネルが閉じている場合は未読カウントを増やす
-      if (!isVisible && message.userId !== currentUserId) {
+      if (!isVisible && data.message.userId !== currentUserId) {
         setUnreadCount(prev => prev + 1);
       }
     };

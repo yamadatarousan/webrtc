@@ -122,6 +122,28 @@ export interface JoinRoomResponse {
   error?: WebRTCError;
 }
 
+// チャットメッセージの型定義
+export interface ChatMessage {
+  id: string;
+  roomId: string;
+  userId: string;
+  userName: string;
+  message: string;
+  timestamp: Date;
+  type: 'text' | 'system';
+}
+
+// チャットメッセージ送信リクエスト
+export interface SendChatMessageRequest {
+  roomId: string;
+  message: string;
+}
+
+// チャットメッセージ受信レスポンス
+export interface ChatMessageReceived {
+  message: ChatMessage;
+}
+
 // Socket.ioイベント名の定数
 export const SOCKET_EVENTS = {
   // 接続関連
@@ -141,6 +163,10 @@ export const SOCKET_EVENTS = {
   OFFER: 'offer',
   ANSWER: 'answer',
   ICE_CANDIDATE: 'ice-candidate',
+  
+  // チャット機能
+  CHAT_MESSAGE: 'chat-message',
+  CHAT_MESSAGE_RECEIVED: 'chat-message-received',
   
   // エラー
   ERROR: 'error',

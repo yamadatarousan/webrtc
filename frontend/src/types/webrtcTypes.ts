@@ -1,6 +1,24 @@
-// WebRTCアプリケーション用の型定義（フロントエンド専用）
+/**
+ * WebRTCアプリケーション用の型定義（フロントエンド専用）
+ * 
+ * このファイルには、React + TypeScript + Viteで構築された
+ * WebRTCクライアントアプリケーションで使用される型定義が含まれています。
+ * 
+ * 主な機能領域：
+ * - WebRTCシグナリングメッセージ
+ * - ユーザー・ルーム管理
+ * - チャット機能
+ * - UI状態管理
+ * - ブラウザAPI連携
+ * 
+ * @fileoverview WebRTCアプリケーションのフロントエンド型定義
+ * @author WebRTCアプリケーション開発チーム
+ * @version 1.0.0
+ */
 
-// シグナリングメッセージの種類
+/**
+ * WebRTCシグナリングメッセージの種類を定義する列挙型
+ */
 export type SignalingMessageType = 
   | 'offer'
   | 'answer'
@@ -12,60 +30,69 @@ export type SignalingMessageType =
   | 'room-full'
   | 'error';
 
-// シグナリングメッセージの基本構造
+/**
+ * WebRTCシグナリングメッセージの基底インターフェース
+ */
 export interface SignalingMessage {
-  type: SignalingMessageType;
-  data?: any;
-  from?: string;
-  to?: string;
-  roomId?: string;
-  timestamp?: number;
+  fromUserId: string;
+  toUserId: string;
+  type: 'offer' | 'answer' | 'ice-candidate';
+  data: any;
+  from?: string; // WebRTCServiceとの互換性のため
 }
 
-// WebRTCオファー・アンサー用のメッセージ
+/**
+ * WebRTCオファーメッセージ
+ */
 export interface RTCOfferMessage extends SignalingMessage {
   type: 'offer';
   data: RTCSessionDescriptionInit;
 }
 
+/**
+ * WebRTCアンサーメッセージ
+ */
 export interface RTCAnswerMessage extends SignalingMessage {
   type: 'answer';
   data: RTCSessionDescriptionInit;
 }
 
-// ICE候補用のメッセージ
+/**
+ * ICE候補メッセージ
+ */
 export interface RTCIceCandidateMessage extends SignalingMessage {
   type: 'ice-candidate';
   data: RTCIceCandidateInit;
 }
 
-// ユーザー情報
+/**
+ * ビデオ通話参加ユーザーの情報
+ */
 export interface User {
   id: string;
   name: string;
-  isAudioEnabled: boolean;
-  isVideoEnabled: boolean;
-  joinedAt: Date;
+  socketId: string;
+  roomId: string;
 }
 
-// ルーム情報
+/**
+ * ビデオ通話ルームの情報
+ */
 export interface Room {
   id: string;
-  name: string;
   users: User[];
   maxUsers: number;
   createdAt: Date;
 }
 
-// 接続状態
-export type ConnectionState = 
-  | 'disconnected'
-  | 'connecting'
-  | 'connected'
-  | 'reconnecting'
-  | 'failed';
+/**
+ * WebRTC接続状態
+ */
+export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error' | 'failed';
 
-// WebRTC接続状態
+/**
+ * WebRTC接続状態の詳細版
+ */
 export type WebRTCConnectionState = 
   | 'new'
   | 'connecting'
@@ -74,40 +101,92 @@ export type WebRTCConnectionState =
   | 'failed'
   | 'closed';
 
-// メディアストリーム設定
+/**
+ * メディアトラック制約
+ */
+export interface MediaTrackConstraints {
+  width?: number | { ideal?: number; min?: number; max?: number };
+  height?: number | { ideal?: number; min?: number; max?: number };
+  frameRate?: number | { ideal?: number; min?: number; max?: number };
+  echoCancellation?: boolean;
+  noiseSuppression?: boolean;
+  autoGainControl?: boolean;
+  deviceId?: string;
+}
+
+/**
+ * メディアストリーム設定
+ */
 export interface MediaStreamConfig {
   video: boolean | MediaTrackConstraints;
   audio: boolean | MediaTrackConstraints;
 }
 
-// エラー情報
+/**
+ * WebRTCアプリケーションで発生するエラーの詳細情報
+ */
 export interface WebRTCError {
   code: string;
   message: string;
-  details?: any;
+  details?: string;
+  timestamp: Date;
 }
 
-// ルーム参加リクエスト
+/**
+ * ルーム参加リクエストのデータ構造
+ */
 export interface JoinRoomRequest {
+  roomId: string;
+  userName: string;
+  userId?: string; // VideoCallコンポーネントとの互換性のため
+}
+
+/**
+ * ルーム参加成功時のレスポンスデータ
+ */
+export interface JoinRoomResponse {
+  room: Room;
+  user: User;
+  existingUsers: User[];
+}
+
+/**
+ * チャットメッセージの完全な情報
+ */
+export interface ChatMessage {
+  id: string;
   roomId: string;
   userId: string;
   userName: string;
+  message: string;
+  timestamp: Date;
+  type: 'text' | 'system';
 }
 
-// ルーム参加レスポンス
-export interface JoinRoomResponse {
-  success: boolean;
-  room?: Room;
-  error?: WebRTCError;
+/**
+ * チャットメッセージ送信リクエストの構造
+ */
+export interface SendChatMessageRequest {
+  roomId: string;
+  message: string;
 }
 
-// Socket.ioイベント名の定数
+/**
+ * チャットメッセージ受信時のイベントデータ
+ */
+export interface ChatMessageReceived {
+  message: ChatMessage;
+}
+
+/**
+ * Socket.ioイベント名の定数定義
+ */
 export const SOCKET_EVENTS = {
-  // 接続関連
+  // 基本接続イベント
   CONNECT: 'connect',
   DISCONNECT: 'disconnect',
   
-  // ルーム関連
+  // ルーム管理イベント
   JOIN_ROOM: 'join-room',
   LEAVE_ROOM: 'leave-room',
   ROOM_JOINED: 'room-joined',
@@ -116,29 +195,39 @@ export const SOCKET_EVENTS = {
   USER_LEFT: 'user-left',
   ROOM_FULL: 'room-full',
   
-  // WebRTCシグナリング
+  // WebRTCシグナリングイベント
   OFFER: 'offer',
   ANSWER: 'answer',
   ICE_CANDIDATE: 'ice-candidate',
   
-  // エラー
-  ERROR: 'error',
+  // チャット機能イベント
+  CHAT_MESSAGE_SEND: 'chat-message-send',
+  CHAT_MESSAGE_RECEIVED: 'chat-message-received',
+  
+  // エラーハンドリングイベント
+  ERROR: 'error'
 } as const;
 
-// STUN/TURNサーバー設定
+/**
+ * STUN/TURNサーバー設定
+ */
 export interface ICEServerConfig {
   urls: string | string[];
   username?: string;
   credential?: string;
 }
 
-// WebRTC設定
+/**
+ * WebRTC設定
+ */
 export interface WebRTCConfig {
   iceServers: ICEServerConfig[];
   iceCandidatePoolSize?: number;
 }
 
-// デフォルトのWebRTC設定
+/**
+ * デフォルトのWebRTC設定
+ */
 export const DEFAULT_WEBRTC_CONFIG: WebRTCConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -147,32 +236,18 @@ export const DEFAULT_WEBRTC_CONFIG: WebRTCConfig = {
   iceCandidatePoolSize: 10,
 };
 
-// メディアストリームのデフォルト設定
-export const DEFAULT_MEDIA_CONSTRAINTS: MediaStreamConstraints = {
+/**
+ * メディアストリームのデフォルト設定
+ */
+export const DEFAULT_MEDIA_CONSTRAINTS: MediaStreamConfig = {
   video: {
-    width: { ideal: 640 },
-    height: { ideal: 480 },
-    frameRate: { ideal: 15 },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30 },
   },
   audio: {
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
   },
-};
-
-// リモートピア情報
-export interface RemotePeer {
-  id: string;
-  name: string;
-  connection: RTCPeerConnection;
-  stream?: MediaStream;
-}
-
-// ローカルメディア状態
-export interface LocalMediaState {
-  stream?: MediaStream;
-  isAudioEnabled: boolean;
-  isVideoEnabled: boolean;
-  isScreenSharing: boolean;
-} 
+}; 

@@ -41,9 +41,18 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
       
       // 既存のユーザーがいる場合、リモートユーザーリストを設定
       if (response.room && response.room.users) {
-        const existingUsers = response.room.users.filter((user: User) => user.id !== socketService.getCurrentUserId());
+        const currentUserId = socketService.getCurrentUserId();
+        console.log('🔍 現在のユーザーID:', currentUserId);
+        console.log('🔍 ルーム内の全ユーザー:', response.room.users);
+        
+        const existingUsers = response.room.users.filter((user: User) => {
+          const isNotSelf = user.id !== currentUserId;
+          console.log(`🔍 ユーザー ${user.id} は自分ではない: ${isNotSelf}`);
+          return isNotSelf;
+        });
+        
         setRemoteUsers(existingUsers);
-        console.log('既存ユーザー:', existingUsers);
+        console.log('🔍 フィルタ後の既存ユーザー:', existingUsers);
       }
 
       // ルーム参加成功後にメディアストリームを取得
@@ -65,7 +74,17 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
     };
 
     const handleUserJoined = (user: User) => {
-      console.log('新しいユーザーが参加:', user);
+      const currentUserId = socketService.getCurrentUserId();
+      console.log('🔍 新しいユーザーが参加:', user);
+      console.log('🔍 現在のユーザーID:', currentUserId);
+      console.log('🔍 参加したユーザーは自分ではない:', user.id !== currentUserId);
+      
+      // 自分自身の場合は処理をスキップ
+      if (user.id === currentUserId) {
+        console.log('🔍 自分自身の参加通知のためスキップ');
+        return;
+      }
+      
       setRemoteUsers(prev => [...prev, user]);
       
       // 新しいユーザーとWebRTC接続を開始（ローカルストリームがある場合のみ）

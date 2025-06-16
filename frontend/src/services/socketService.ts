@@ -13,6 +13,7 @@ export class SocketService {
   private socket: any | null = null;
   private connectionState: ConnectionState = 'disconnected';
   private listeners: Map<string, Function[]> = new Map();
+  private currentUserId: string = '';
 
   constructor() {
     this.connect();
@@ -110,6 +111,8 @@ export class SocketService {
       throw new Error('Socket.ioが接続されていません');
     }
 
+    // 現在のユーザーIDを保存
+    this.currentUserId = request.userId;
     console.log('🏠 ルーム参加要求:', request);
     this.socket.emit(SOCKET_EVENTS.JOIN_ROOM, request);
   }
@@ -120,6 +123,8 @@ export class SocketService {
       this.socket.emit(SOCKET_EVENTS.LEAVE_ROOM);
       console.log('🚪 ルーム退出リクエスト送信');
     }
+    // ユーザーIDをクリア
+    this.currentUserId = '';
   }
 
   // Offerを送信
@@ -201,7 +206,7 @@ export class SocketService {
 
   // 現在のユーザーIDを取得
   public getCurrentUserId(): string {
-    return this.socket?.id || '';
+    return this.currentUserId;
   }
 
   // Socket.ioサービスの破棄
@@ -211,6 +216,8 @@ export class SocketService {
       this.socket = null;
       this.connectionState = 'disconnected';
     }
+    // ユーザーIDをクリア
+    this.currentUserId = '';
   }
 }
 

@@ -1,0 +1,382 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { socketService } from '../services/socketService';
+import { webrtcService } from '../services/webrtcService';
+import type { 
+  JoinRoomRequest, 
+  ConnectionState,
+  User
+} from '../types/webrtcTypes';
+import { 
+  DEFAULT_WEBRTC_CONFIG,
+  DEFAULT_MEDIA_CONSTRAINTS 
+} from '../types/webrtcTypes';
+
+interface VideoCallProps {}
+
+export const VideoCall: React.FC<VideoCallProps> = () => {
+  // 状態管理
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
+  const [roomId, setRoomId] = useState<string>('');
+  const [userName, setUserName] = useState<string>('');
+  const [isInRoom, setIsInRoom] = useState<boolean>(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [isAudioEnabled, setIsAudioEnabled] = useState<boolean>(true);
+  const [isVideoEnabled, setIsVideoEnabled] = useState<boolean>(true);
+  const [remoteUsers, setRemoteUsers] = useState<User[]>([]);
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+
+  // Refs
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+
+  // Socket.ioイベントリスナーの設定
+  useEffect(() => {
+    const handleConnectionStateChange = (state: ConnectionState) => {
+      setConnectionState(state);
+      console.log('接続状態変更:', state);
+    };
+
+    const handleRoomJoined = (response: any) => {
+      console.log('ルーム参加成功:', response);
+      setIsInRoom(true);
+    };
+
+    const handleUserJoined = (user: User) => {
+      console.log('新しいユーザーが参加:', user);
+      setRemoteUsers(prev => [...prev, user]);
+      
+      // 新しいユーザーとWebRTC接続を開始
+      if (localStream) {
+        webrtcService.initiateCall(user.id);
+      }
+    };
+
+    const handleUserLeft = (userId: string) => {
+      console.log('ユーザーが退出:', userId);
+      setRemoteUsers(prev => prev.filter(user => user.id !== userId));
+    };
+
+    const handleError = (error: any) => {
+      console.error('エラー:', error);
+      alert(`エラー: ${error.message}`);
+    };
+
+    // イベントリスナーを登録
+    socketService.on('connection-state-changed', handleConnectionStateChange);
+    socketService.on('room-joined', handleRoomJoined);
+    socketService.on('user-joined', handleUserJoined);
+    socketService.on('user-left', handleUserLeft);
+    socketService.on('error', handleError);
+
+    // 初期接続状態を設定
+    setConnectionState(socketService.getConnectionState());
+
+    // クリーンアップ
+    return () => {
+      socketService.off('connection-state-changed', handleConnectionStateChange);
+      socketService.off('room-joined', handleRoomJoined);
+      socketService.off('user-joined', handleUserJoined);
+      socketService.off('user-left', handleUserLeft);
+      socketService.off('error', handleError);
+    };
+  }, []);
+
+  // WebRTCイベントリスナーの設定
+  useEffect(() => {
+    const handleRemoteStream = ({ userId, stream }: { userId: string; stream: MediaStream }) => {
+      console.log('📥 リモートストリーム受信:', userId);
+      setRemoteStreams(prev => {
+        const newStreams = new Map(prev);
+        newStreams.set(userId, stream);
+        return newStreams;
+      });
+    };
+
+    const handleRemoteStreamRemoved = ({ userId }: { userId: string }) => {
+      console.log('📤 リモートストリーム削除:', userId);
+      setRemoteStreams(prev => {
+        const newStreams = new Map(prev);
+        newStreams.delete(userId);
+        return newStreams;
+      });
+    };
+
+    // WebRTCイベントリスナーを登録
+    webrtcService.on('remote-stream', handleRemoteStream);
+    webrtcService.on('remote-stream-removed', handleRemoteStreamRemoved);
+
+    // クリーンアップ
+    return () => {
+      webrtcService.off('remote-stream', handleRemoteStream);
+      webrtcService.off('remote-stream-removed', handleRemoteStreamRemoved);
+    };
+  }, []);
+
+  // ローカルメディアストリームを取得
+  const startLocalStream = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(DEFAULT_MEDIA_CONSTRAINTS);
+      setLocalStream(stream);
+      
+      // WebRTCサービスにローカルストリームを設定
+      webrtcService.setLocalStream(stream);
+      
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+      
+      console.log('ローカルストリーム取得成功');
+    } catch (error) {
+      console.error('メディアアクセスエラー:', error);
+      alert('カメラ・マイクのアクセスに失敗しました。ブラウザの設定を確認してください。');
+    }
+  };
+
+  // ローカルメディアストリームを停止
+  const stopLocalStream = () => {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+      
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
+    }
+  };
+
+  // ルームに参加
+  const joinRoom = async () => {
+    if (!roomId.trim() || !userName.trim()) {
+      alert('ルームIDとユーザー名を入力してください');
+      return;
+    }
+
+    if (!socketService.isConnected()) {
+      alert('サーバーに接続されていません。少し待ってから再試行してください。');
+      return;
+    }
+
+    try {
+      // ローカルストリームを開始
+      await startLocalStream();
+
+      // ルーム参加リクエスト
+      const request: JoinRoomRequest = {
+        roomId: roomId.trim(),
+        userId: `user-${Date.now()}`, // 簡易的なユーザーID生成
+        userName: userName.trim(),
+      };
+
+      socketService.joinRoom(request);
+    } catch (error) {
+      console.error('ルーム参加エラー:', error);
+      alert('ルームへの参加に失敗しました');
+    }
+  };
+
+  // ルームから退出
+  const leaveRoom = () => {
+    socketService.leaveRoom();
+    webrtcService.closeAllConnections();
+    stopLocalStream();
+    setIsInRoom(false);
+    setRemoteUsers([]);
+    setRemoteStreams(new Map());
+  };
+
+  // 音声のON/OFF切り替え
+  const toggleAudio = () => {
+    if (localStream) {
+      const audioTracks = localStream.getAudioTracks();
+      audioTracks.forEach(track => {
+        track.enabled = !isAudioEnabled;
+      });
+      setIsAudioEnabled(!isAudioEnabled);
+    }
+  };
+
+  // ビデオのON/OFF切り替え
+  const toggleVideo = () => {
+    if (localStream) {
+      const videoTracks = localStream.getVideoTracks();
+      videoTracks.forEach(track => {
+        track.enabled = !isVideoEnabled;
+      });
+      setIsVideoEnabled(!isVideoEnabled);
+    }
+  };
+
+  // 接続状態の表示用スタイル
+  const getConnectionStateStyle = () => {
+    switch (connectionState) {
+      case 'connected':
+        return { color: 'green' };
+      case 'connecting':
+      case 'reconnecting':
+        return { color: 'orange' };
+      case 'disconnected':
+      case 'failed':
+        return { color: 'red' };
+      default:
+        return { color: 'gray' };
+    }
+  };
+
+  return (
+    <div className="video-call-container" style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+      <h1>WebRTC ビデオ通話アプリ</h1>
+      
+      {/* 接続状態表示 */}
+      <div style={{ marginBottom: '20px' }}>
+        <span>接続状態: </span>
+        <span style={getConnectionStateStyle()}>
+          {connectionState === 'connected' ? '✅ 接続中' : 
+           connectionState === 'connecting' ? '🔄 接続中...' :
+           connectionState === 'reconnecting' ? '🔄 再接続中...' :
+           connectionState === 'failed' ? '❌ 接続失敗' :
+           '⚫ 切断済み'}
+        </span>
+      </div>
+
+      {!isInRoom ? (
+        /* ルーム参加フォーム */
+        <div className="join-form" style={{ marginBottom: '20px' }}>
+          <h2>ルームに参加</h2>
+          <div style={{ marginBottom: '10px' }}>
+            <input
+              type="text"
+              placeholder="ルームID (例: room1)"
+              value={roomId}
+              onChange={(e) => setRoomId(e.target.value)}
+              style={{ padding: '10px', marginRight: '10px', minWidth: '200px' }}
+            />
+          </div>
+          <div style={{ marginBottom: '10px' }}>
+            <input
+              type="text"
+              placeholder="あなたの名前"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+              style={{ padding: '10px', marginRight: '10px', minWidth: '200px' }}
+            />
+          </div>
+          <button
+            onClick={joinRoom}
+            disabled={connectionState !== 'connected'}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: connectionState === 'connected' ? '#4CAF50' : '#ccc',
+              color: 'white',
+              border: 'none',
+              cursor: connectionState === 'connected' ? 'pointer' : 'not-allowed',
+            }}
+          >
+            ルームに参加
+          </button>
+        </div>
+      ) : (
+        /* ビデオ通話画面 */
+        <div className="video-call-screen">
+          <h2>ルーム: {roomId}</h2>
+          
+          {/* コントロールボタン */}
+          <div style={{ marginBottom: '20px' }}>
+            <button
+              onClick={toggleAudio}
+              style={{
+                padding: '10px 15px',
+                margin: '0 5px',
+                backgroundColor: isAudioEnabled ? '#4CAF50' : '#f44336',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              {isAudioEnabled ? '🎤 音声ON' : '🔇 音声OFF'}
+            </button>
+            <button
+              onClick={toggleVideo}
+              style={{
+                padding: '10px 15px',
+                margin: '0 5px',
+                backgroundColor: isVideoEnabled ? '#4CAF50' : '#f44336',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              {isVideoEnabled ? '📹 ビデオON' : '📷 ビデオOFF'}
+            </button>
+            <button
+              onClick={leaveRoom}
+              style={{
+                padding: '10px 15px',
+                margin: '0 5px',
+                backgroundColor: '#f44336',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              🚪 退出
+            </button>
+          </div>
+
+          {/* ビデオ表示エリア */}
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+            {/* ローカルビデオ */}
+            <div>
+              <h3>あなた ({userName})</h3>
+              <video
+                ref={localVideoRef}
+                autoPlay
+                muted
+                playsInline
+                style={{
+                  width: '320px',
+                  height: '240px',
+                  backgroundColor: '#000',
+                  border: '2px solid #4CAF50',
+                }}
+              />
+            </div>
+
+            {/* リモートビデオ */}
+            {Array.from(remoteStreams.entries()).map(([userId, stream]) => (
+              <div key={userId}>
+                <h3>リモートユーザー ({userId})</h3>
+                <video
+                  ref={(video) => {
+                    if (video) {
+                      video.srcObject = stream;
+                      remoteVideoRefs.current.set(userId, video);
+                    }
+                  }}
+                  autoPlay
+                  playsInline
+                  style={{
+                    width: '320px',
+                    height: '240px',
+                    backgroundColor: '#000',
+                    border: '2px solid #2196F3',
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* 参加ユーザー一覧 */}
+          <div style={{ marginTop: '20px' }}>
+            <h3>参加ユーザー ({remoteUsers.length + 1}人)</h3>
+            <ul>
+              <li>{userName} (あなた)</li>
+              {remoteUsers.map(user => (
+                <li key={user.id}>ユーザー {user.name} ({user.id})</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}; 

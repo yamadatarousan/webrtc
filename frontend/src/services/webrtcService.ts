@@ -92,7 +92,20 @@ export class WebRTCService {
       this.peerConnections.set(targetUserId, peerConnection);
 
       // ローカルストリームをピア接続に追加
-      this.localStream.getTracks().forEach(track => {
+      console.log('📤 ローカルストリームをピア接続に追加:', {
+        targetUserId,
+        tracksCount: this.localStream.getTracks().length,
+        videoTracks: this.localStream.getVideoTracks().length,
+        audioTracks: this.localStream.getAudioTracks().length
+      });
+      
+      this.localStream.getTracks().forEach((track, index) => {
+        console.log(`📤 トラック ${index} を追加:`, {
+          kind: track.kind,
+          id: track.id,
+          enabled: track.enabled,
+          readyState: track.readyState
+        });
         peerConnection.addTrack(track, this.localStream!);
       });
 
@@ -138,9 +151,21 @@ export class WebRTCService {
     // リモートストリームを受信したとき
     peerConnection.ontrack = (event) => {
       console.log('📥 リモートストリームを受信:', userId, event.streams[0]);
+      console.log('📥 受信トラック詳細:', {
+        trackKind: event.track.kind,
+        trackId: event.track.id,
+        streamCount: event.streams.length,
+        streamId: event.streams[0]?.id
+      });
+      
       const remoteStream = event.streams[0];
-      this.remoteStreams.set(userId, remoteStream);
-      this.emit('remote-stream', { userId, stream: remoteStream });
+      if (remoteStream) {
+        this.remoteStreams.set(userId, remoteStream);
+        this.emit('remote-stream', { userId, stream: remoteStream });
+        console.log('📥 リモートストリームイベント送信完了:', userId);
+      } else {
+        console.warn('⚠️ リモートストリームが undefined:', userId);
+      }
     };
 
     // 接続状態の変更
@@ -193,12 +218,59 @@ export class WebRTCService {
       const peerConnection = this.createPeerConnection(from!);
       this.peerConnections.set(from!, peerConnection);
 
-      // ローカルストリームをピア接続に追加
-      if (this.localStream) {
-        this.localStream.getTracks().forEach(track => {
-          peerConnection.addTrack(track, this.localStream!);
-        });
+      // ローカルストリームの準備を待機
+      if (!this.localStream) {
+        console.warn('⚠️ Offer処理時にローカルストリームが未設定:', from);
+        console.log('⏱️ ローカルストリーム設定を待機します...');
+        
+        // ローカルストリームが設定されるまで待機
+        const maxWaitTime = 10000; // 10秒
+        const checkInterval = 100; // 100ms
+        let waitTime = 0;
+        
+        const waitForLocalStream = () => {
+          return new Promise<void>((resolve, reject) => {
+            const checkLocalStream = () => {
+              if (this.localStream) {
+                console.log('✅ ローカルストリーム準備完了、Offer処理を続行:', from);
+                resolve();
+              } else if (waitTime >= maxWaitTime) {
+                console.error('❌ ローカルストリーム取得タイムアウト:', from);
+                reject(new Error('Local stream timeout'));
+              } else {
+                waitTime += checkInterval;
+                setTimeout(checkLocalStream, checkInterval);
+              }
+            };
+            checkLocalStream();
+          });
+        };
+        
+        try {
+          await waitForLocalStream();
+        } catch (error) {
+          console.error('❌ Offer処理中断 - ローカルストリーム未取得:', from, error);
+          return;
+        }
       }
+
+      // ローカルストリームをピア接続に追加
+      console.log('📤 Offer処理時にローカルストリームをピア接続に追加:', {
+        from,
+        tracksCount: this.localStream!.getTracks().length,
+        videoTracks: this.localStream!.getVideoTracks().length,
+        audioTracks: this.localStream!.getAudioTracks().length
+      });
+      
+      this.localStream!.getTracks().forEach((track, index) => {
+        console.log(`📤 Offer処理 - トラック ${index} を追加:`, {
+          kind: track.kind,
+          id: track.id,
+          enabled: track.enabled,
+          readyState: track.readyState
+        });
+        peerConnection.addTrack(track, this.localStream!);
+      });
 
       // リモートのOfferを設定
       await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));

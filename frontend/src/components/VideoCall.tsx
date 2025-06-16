@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { socketService } from '../services/socketService';
 import { webrtcService } from '../services/webrtcService';
 import type { 
@@ -86,13 +86,7 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
       }
       
       setRemoteUsers(prev => [...prev, user]);
-      
-      // 新しいユーザーとWebRTC接続を開始（ローカルストリームがある場合のみ）
-      if (localStream && !connectedUsersRef.current.has(user.id)) {
-        console.log('新しいユーザーとの接続を開始:', user);
-        webrtcService.initiateCall(user.id);
-        connectedUsersRef.current.add(user.id);
-      }
+      console.log('🔍 リモートユーザーリストに追加完了、接続は useEffect で処理されます');
     };
 
     const handleUserLeft = (userId: string) => {
@@ -125,7 +119,7 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
       socketService.off('user-left', handleUserLeft);
       socketService.off('error', handleError);
     };
-  }, []);
+  }, []); // 依存配列は空のままでOK - イベントハンドラー自体はlocalStreamに依存しない
 
   // WebRTCイベントリスナーの設定
   useEffect(() => {
@@ -191,20 +185,40 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
   // 接続済みユーザーを追跡するためのRef
   const connectedUsersRef = useRef<Set<string>>(new Set());
 
-  // ローカルストリームが設定された後、既存ユーザーとの接続を開始
-  useEffect(() => {
-    if (localStream && isInRoom && remoteUsers.length > 0) {
-      console.log('ローカルストリーム設定完了、未接続ユーザーとの接続を開始');
-      remoteUsers.forEach((user: User) => {
-        // まだ接続していないユーザーとのみ接続を開始
-        if (!connectedUsersRef.current.has(user.id)) {
-          console.log('未接続ユーザーとの接続を開始:', user);
-          webrtcService.initiateCall(user.id);
-          connectedUsersRef.current.add(user.id);
-        }
+  // 接続開始の共通処理
+  const tryStartConnections = useCallback(() => {
+    if (!localStream || !isInRoom || remoteUsers.length === 0) {
+      console.log('🔗 接続開始の条件が満たされていません:', {
+        hasLocalStream: !!localStream,
+        isInRoom,
+        remoteUsersCount: remoteUsers.length
       });
+      return;
     }
+
+    console.log('🔗 接続条件確認:', {
+      hasLocalStream: !!localStream,
+      isInRoom,
+      remoteUsersCount: remoteUsers.length,
+      connectedUsersCount: connectedUsersRef.current.size
+    });
+    
+    remoteUsers.forEach((user: User) => {
+      // まだ接続していないユーザーとのみ接続を開始
+      if (!connectedUsersRef.current.has(user.id)) {
+        console.log('🔗 未接続ユーザーとの接続を開始:', user.id);
+        webrtcService.initiateCall(user.id);
+        connectedUsersRef.current.add(user.id);
+      } else {
+        console.log('🔗 既に接続済みのユーザー:', user.id);
+      }
+    });
   }, [localStream, isInRoom, remoteUsers]);
+
+  // ローカルストリームが設定された後、未接続ユーザーとの接続を開始
+  useEffect(() => {
+    tryStartConnections();
+  }, [tryStartConnections]);
 
   // ローカルメディアストリームを取得
   const startLocalStream = async () => {

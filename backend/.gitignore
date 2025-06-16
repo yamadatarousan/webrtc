@@ -1,0 +1,94 @@
+# Backend (Node.js + Express + TypeScript) Specific Git Ignore
+
+# ===================================
+# Environment Variables & Secrets
+# ===================================
+.env
+.env.*
+!.env.example
+
+# ===================================
+# Build & Distribution
+# ===================================
+dist/
+build/
+lib/
+
+# ===================================
+# TypeScript
+# ===================================
+*.tsbuildinfo
+
+# ===================================
+# Logs
+# ===================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===================================
+# Runtime data
+# ===================================
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ===================================
+# Coverage directory used by tools like istanbul
+# ===================================
+coverage/
+.coverage/
+
+# ===================================
+# Dependency directories
+# ===================================
+node_modules/
+
+# ===================================
+# Optional npm cache directory
+# ===================================
+.npm
+
+# ===================================
+# Optional eslint cache
+# ===================================
+.eslintcache
+
+# ===================================
+# Temporary folders
+# ===================================
+.tmp/
+temp/
+
+# ===================================
+# WebRTC Backend Specific
+# ===================================
+# SSL certificates for HTTPS
+*.pem
+*.key
+*.crt
+ssl/
+certs/
+
+# Media uploads (if any)
+uploads/
+media/
+
+# Database files (if using SQLite locally)
+*.sqlite
+*.sqlite3
+*.db
+
+# ===================================
+# PM2 (Process Manager)
+# ===================================
+ecosystem.config.js
+.pm2/
+
+# ===================================
+# Socket.io specific
+# ===================================
+# No specific ignores needed 

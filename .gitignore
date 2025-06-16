@@ -1,0 +1,261 @@
+# WebRTC Video Call App - Git Ignore Rules
+
+# ===================================
+# Node.js Dependencies
+# ===================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ===================================
+# Environment Variables & Secrets
+# ===================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging
+
+# Backend specific environment files
+backend/.env
+backend/.env.*
+
+# ===================================
+# Build & Distribution
+# ===================================
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Frontend specific (Vite/React)
+frontend/dist/
+frontend/build/
+
+# Backend specific (TypeScript)
+backend/dist/
+backend/build/
+
+# ===================================
+# Logs
+# ===================================
+*.log
+logs/
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ===================================
+# Runtime & Cache
+# ===================================
+.cache/
+.parcel-cache/
+.vite/
+.tmp/
+temp/
+.temp/
+
+# ===================================
+# OS Generated Files
+# ===================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Icon?
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===================================
+# IDE & Editor Files
+# ===================================
+# VSCode
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+.vscode/tasks.json
+.vscode/.ropeproject
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ===================================
+# SSL Certificates & Security
+# ===================================
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+certs/
+ssl/
+
+# ===================================
+# WebRTC Specific
+# ===================================
+# STUN/TURN server configs (if any)
+stun-config.json
+turn-config.json
+
+# Media test files
+test-media/
+*.webm
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# ===================================
+# Testing
+# ===================================
+coverage/
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+.jest/
+junit.xml
+test-results/
+
+# ===================================
+# Dependency Directories
+# ===================================
+jspm_packages/
+bower_components/
+
+# ===================================
+# Optional npm cache directory
+# ===================================
+.npm
+
+# ===================================
+# Optional eslint cache
+# ===================================
+.eslintcache
+
+# ===================================
+# Microbundle cache
+# ===================================
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# ===================================
+# Optional REPL history
+# ===================================
+.node_repl_history
+
+# ===================================
+# Output of 'npm pack'
+# ===================================
+*.tgz
+
+# ===================================
+# Yarn Integrity file
+# ===================================
+.yarn-integrity
+
+# ===================================
+# dotenv environment variables file
+# ===================================
+.env.test
+
+# ===================================
+# Serverless directories
+# ===================================
+.serverless/
+
+# ===================================
+# FuseBox cache
+# ===================================
+.fusebox/
+
+# ===================================
+# DynamoDB Local files
+# ===================================
+.dynamodb/
+
+# ===================================
+# TernJS port file
+# ===================================
+.tern-port
+
+# ===================================
+# Stores VSCode versions used for testing VSCode extensions
+# ===================================
+.vscode-test
+
+# ===================================
+# Temporary folders
+# ===================================
+tmp/
+temp/
+.tmp/
+.temp/
+
+# ===================================
+# Archive files
+# ===================================
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# ===================================
+# Database files (if using local DB)
+# ===================================
+*.sqlite
+*.sqlite3
+*.db
+
+# ===================================
+# Docker (future use)
+# ===================================
+# Dockerfile.dev
+# docker-compose.override.yml
+
+# ===================================
+# Backup files
+# ===================================
+*.backup
+*.bak
+*.old
+*.orig 

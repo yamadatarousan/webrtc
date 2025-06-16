@@ -35,24 +35,52 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
       console.log('接続状態変更:', state);
     };
 
-    const handleRoomJoined = (response: any) => {
+    const handleRoomJoined = async (response: any) => {
       console.log('ルーム参加成功:', response);
       setIsInRoom(true);
+      
+      // 既存のユーザーがいる場合、リモートユーザーリストを設定
+      if (response.room && response.room.users) {
+        const existingUsers = response.room.users.filter((user: User) => user.id !== socketService.getCurrentUserId());
+        setRemoteUsers(existingUsers);
+        console.log('既存ユーザー:', existingUsers);
+      }
+
+      // ルーム参加成功後にメディアストリームを取得
+      try {
+        console.log('📹 ルーム参加成功、メディアストリーム取得開始...');
+        // 少し待ってからメディアストリームを取得（DOM要素がレンダリングされるまで）
+        setTimeout(async () => {
+          try {
+            await startLocalStream();
+          } catch (error) {
+            console.error('❌ メディアストリーム取得失敗:', error);
+            alert('カメラ・マイクの取得に失敗しました。ルームから退出します。');
+            leaveRoom();
+          }
+        }, 100);
+      } catch (error) {
+        console.error('❌ メディアストリーム初期化失敗:', error);
+      }
     };
 
     const handleUserJoined = (user: User) => {
       console.log('新しいユーザーが参加:', user);
       setRemoteUsers(prev => [...prev, user]);
       
-      // 新しいユーザーとWebRTC接続を開始
-      if (localStream) {
+      // 新しいユーザーとWebRTC接続を開始（ローカルストリームがある場合のみ）
+      if (localStream && !connectedUsersRef.current.has(user.id)) {
+        console.log('新しいユーザーとの接続を開始:', user);
         webrtcService.initiateCall(user.id);
+        connectedUsersRef.current.add(user.id);
       }
     };
 
     const handleUserLeft = (userId: string) => {
       console.log('ユーザーが退出:', userId);
       setRemoteUsers(prev => prev.filter(user => user.id !== userId));
+      // 接続済みユーザーリストからも削除
+      connectedUsersRef.current.delete(userId);
     };
 
     const handleError = (error: any) => {
@@ -83,10 +111,40 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
   // WebRTCイベントリスナーの設定
   useEffect(() => {
     const handleRemoteStream = ({ userId, stream }: { userId: string; stream: MediaStream }) => {
-      console.log('📥 リモートストリーム受信:', userId);
+      console.log('📥 リモートストリーム受信:', userId, stream);
+      console.log('📥 ストリーム詳細:', {
+        streamId: stream.id,
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length,
+        active: stream.active
+      });
+      
       setRemoteStreams(prev => {
         const newStreams = new Map(prev);
         newStreams.set(userId, stream);
+        console.log('📥 リモートストリーム状態更新:', Array.from(newStreams.keys()));
+        
+        // ストリームのトラック情報を詳細にログ出力
+        stream.getVideoTracks().forEach((track, index) => {
+          console.log(`📥 リモートビデオトラック ${index}:`, {
+            id: track.id,
+            kind: track.kind,
+            enabled: track.enabled,
+            readyState: track.readyState,
+            label: track.label
+          });
+        });
+        
+        stream.getAudioTracks().forEach((track, index) => {
+          console.log(`📥 リモートオーディオトラック ${index}:`, {
+            id: track.id,
+            kind: track.kind,
+            enabled: track.enabled,
+            readyState: track.readyState,
+            label: track.label
+          });
+        });
+        
         return newStreams;
       });
     };
@@ -111,46 +169,113 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
     };
   }, []);
 
+  // 接続済みユーザーを追跡するためのRef
+  const connectedUsersRef = useRef<Set<string>>(new Set());
+
+  // ローカルストリームが設定された後、既存ユーザーとの接続を開始
+  useEffect(() => {
+    if (localStream && isInRoom && remoteUsers.length > 0) {
+      console.log('ローカルストリーム設定完了、未接続ユーザーとの接続を開始');
+      remoteUsers.forEach((user: User) => {
+        // まだ接続していないユーザーとのみ接続を開始
+        if (!connectedUsersRef.current.has(user.id)) {
+          console.log('未接続ユーザーとの接続を開始:', user);
+          webrtcService.initiateCall(user.id);
+          connectedUsersRef.current.add(user.id);
+        }
+      });
+    }
+  }, [localStream, isInRoom, remoteUsers]);
+
   // ローカルメディアストリームを取得
   const startLocalStream = async () => {
     try {
       console.log('📹 メディアストリーム取得開始...');
       console.log('📹 使用する制約:', DEFAULT_MEDIA_CONSTRAINTS);
       
+      // デバイス一覧を確認
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      console.log('📹 利用可能なデバイス:', devices);
+      
       const stream = await navigator.mediaDevices.getUserMedia(DEFAULT_MEDIA_CONSTRAINTS);
       console.log('📹 メディアストリーム取得成功:', stream);
+      console.log('📹 ストリームID:', stream.id);
       console.log('📹 ビデオトラック数:', stream.getVideoTracks().length);
       console.log('📹 オーディオトラック数:', stream.getAudioTracks().length);
       
       // すべてのトラックの状態をログ出力
       stream.getVideoTracks().forEach((track, index) => {
         console.log(`📹 ビデオトラック ${index}:`, {
+          id: track.id,
+          kind: track.kind,
           enabled: track.enabled,
           readyState: track.readyState,
-          label: track.label
+          label: track.label,
+          settings: track.getSettings()
+        });
+      });
+      
+      stream.getAudioTracks().forEach((track, index) => {
+        console.log(`🎤 オーディオトラック ${index}:`, {
+          id: track.id,
+          kind: track.kind,
+          enabled: track.enabled,
+          readyState: track.readyState,
+          label: track.label,
+          settings: track.getSettings()
         });
       });
       
       setLocalStream(stream);
       
       // WebRTCサービスにローカルストリームを設定
+      console.log('📹 WebRTCサービスにローカルストリームを設定...');
       webrtcService.setLocalStream(stream);
       
-      // ビデオ要素にストリームを設定 - 非同期で確実に設定
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        console.log('📹 ローカルビデオ要素にストリーム設定完了');
-        
-        // ビデオの読み込み完了を待つ
-        localVideoRef.current.onloadedmetadata = () => {
-          console.log('📹 ビデオメタデータ読み込み完了');
-          if (localVideoRef.current) {
+      // ビデオ要素にストリームを設定 - DOM要素の存在を確認してから設定
+      const setVideoStream = () => {
+        if (localVideoRef.current) {
+          console.log('📹 ローカルビデオ要素の参照:', localVideoRef.current);
+          localVideoRef.current.srcObject = stream;
+          console.log('📹 ローカルビデオ要素にストリーム設定完了');
+          console.log('📹 ビデオ要素のsrcObject:', localVideoRef.current.srcObject);
+          
+          // ビデオの読み込み完了を待つ
+          localVideoRef.current.onloadedmetadata = () => {
+            console.log('📹 ビデオメタデータ読み込み完了');
+            console.log('📹 ビデオサイズ:', {
+              videoWidth: localVideoRef.current?.videoWidth,
+              videoHeight: localVideoRef.current?.videoHeight
+            });
+            if (localVideoRef.current) {
+              localVideoRef.current.play().then(() => {
+                console.log('📹 ビデオ再生開始成功');
+              }).catch(e => {
+                console.warn('📹 ビデオ自動再生失敗:', e);
+              });
+            }
+          };
+          
+          // エラーハンドリング
+          localVideoRef.current.onerror = (e) => {
+            console.error('📹 ビデオ要素エラー:', e);
+          };
+          
+          // ビデオの再生試行
+          if (localVideoRef.current.readyState >= HTMLMediaElement.HAVE_METADATA) {
             localVideoRef.current.play().catch(e => {
-              console.warn('📹 ビデオ自動再生失敗:', e);
+              console.warn('📹 ビデオ再生失敗:', e);
             });
           }
-        };
-      }
+        } else {
+          console.warn('📹 ローカルビデオ要素の参照が見つかりません、DOM要素のレンダリングを待機中...');
+          // DOM要素がまだレンダリングされていない場合、短時間待機してリトライ
+          setTimeout(setVideoStream, 100);
+        }
+      };
+
+      // ビデオストリーム設定を実行
+      setVideoStream();
       
       console.log('✅ ローカルストリーム設定完了');
     } catch (error) {
@@ -204,16 +329,14 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
     }
 
     try {
-      // ローカルストリームを開始
-      await startLocalStream();
-
-      // ルーム参加リクエスト
+      // まずルーム参加リクエストを送信（メディアストリーム取得は後で行う）
       const request: JoinRoomRequest = {
         roomId: roomId.trim(),
         userId: `user-${Date.now()}`, // 簡易的なユーザーID生成
         userName: userName.trim(),
       };
 
+      console.log('🏠 ルーム参加リクエスト送信...');
       socketService.joinRoom(request);
     } catch (error) {
       console.error('ルーム参加エラー:', error);

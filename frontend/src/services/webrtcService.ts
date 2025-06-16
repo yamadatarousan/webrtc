@@ -65,6 +65,28 @@ export class WebRTCService {
     }
 
     try {
+      // 既存の接続があるかチェック
+      if (this.peerConnections.has(targetUserId)) {
+        const existingConnection = this.peerConnections.get(targetUserId);
+        console.log('🔍 既存接続の状態:', {
+          targetUserId,
+          signalingState: existingConnection?.signalingState,
+          iceConnectionState: existingConnection?.iceConnectionState,
+          connectionState: existingConnection?.connectionState
+        });
+
+        // 既存接続が安定している場合は新しい通話を開始しない
+        if (existingConnection?.connectionState === 'connected' || 
+            existingConnection?.iceConnectionState === 'connected') {
+          console.warn('⚠️ 通話開始無視 - 既存接続が安定:', targetUserId);
+          return;
+        }
+
+        // 既存接続をクリーンアップ
+        console.log('🧹 既存接続をクリーンアップ:', targetUserId);
+        this.closePeerConnection(targetUserId);
+      }
+
       // RTCPeerConnectionを作成
       const peerConnection = this.createPeerConnection(targetUserId);
       this.peerConnections.set(targetUserId, peerConnection);
@@ -146,6 +168,27 @@ export class WebRTCService {
     console.log('📥 Offerを受信:', from);
 
     try {
+      // 既存の接続があるかチェック
+      if (this.peerConnections.has(from!)) {
+        const existingConnection = this.peerConnections.get(from!);
+        console.log('🔍 既存接続の状態:', {
+          signalingState: existingConnection?.signalingState,
+          iceConnectionState: existingConnection?.iceConnectionState,
+          connectionState: existingConnection?.connectionState
+        });
+
+        // 既存接続が安定している場合は新しいOfferを無視
+        if (existingConnection?.connectionState === 'connected' || 
+            existingConnection?.iceConnectionState === 'connected') {
+          console.warn('⚠️ Offer無視 - 既存接続が安定:', from);
+          return;
+        }
+
+        // 既存接続をクリーンアップ
+        console.log('🧹 既存接続をクリーンアップ:', from);
+        this.closePeerConnection(from!);
+      }
+
       // RTCPeerConnectionを作成
       const peerConnection = this.createPeerConnection(from!);
       this.peerConnections.set(from!, peerConnection);
@@ -186,8 +229,26 @@ export class WebRTCService {
     try {
       const peerConnection = this.peerConnections.get(from!);
       if (peerConnection) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        console.log('✅ Answer処理完了:', from);
+        // RTCPeerConnectionの状態をチェック
+        console.log('🔍 RTCPeerConnection状態:', {
+          signalingState: peerConnection.signalingState,
+          iceConnectionState: peerConnection.iceConnectionState,
+          connectionState: peerConnection.connectionState
+        });
+
+        // signalingStateが適切な状態の場合のみAnswerを設定
+        if (peerConnection.signalingState === 'have-local-offer') {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+          console.log('✅ Answer処理完了:', from);
+        } else {
+          console.warn('⚠️ Answer無視 - 不適切な状態:', {
+            from,
+            signalingState: peerConnection.signalingState,
+            expected: 'have-local-offer'
+          });
+        }
+      } else {
+        console.warn('⚠️ Answer無視 - ピア接続が見つかりません:', from);
       }
     } catch (error) {
       console.error('❌ Answer処理エラー:', error);

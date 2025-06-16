@@ -1,0 +1,145 @@
+name: WebRTC Video Call App CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # バックエンドのテストとビルド
+  backend:
+    name: Backend Tests and Build
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    
+    - name: Install backend dependencies
+      working-directory: ./backend
+      run: npm ci
+    
+    - name: Run backend linting
+      working-directory: ./backend
+      run: npm run lint
+      continue-on-error: true
+    
+    - name: Run backend tests
+      working-directory: ./backend
+      run: npm test
+      env:
+        NODE_ENV: test
+    
+    - name: Build backend
+      working-directory: ./backend
+      run: npm run build
+
+  # フロントエンドのテストとビルド
+  frontend:
+    name: Frontend Tests and Build
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm ci
+    
+    - name: Run frontend linting
+      working-directory: ./frontend
+      run: npm run lint
+      continue-on-error: true
+    
+    - name: Run frontend tests
+      working-directory: ./frontend
+      run: npm test
+      env:
+        CI: true
+    
+    - name: Build frontend
+      working-directory: ./frontend
+      run: npm run build
+
+  # 統合テスト（将来的な拡張用）
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    
+    strategy:
+      matrix:
+        node-version: [20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Install root dependencies
+      run: npm ci
+    
+    - name: Install all dependencies
+      run: npm run install:all
+    
+    - name: Build all projects
+      run: npm run build:all
+    
+    - name: Run integration tests
+      run: npm run test:all
+      env:
+        NODE_ENV: test
+        CI: true
+
+  # セキュリティチェック
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+    
+    - name: Security audit backend
+      working-directory: ./backend
+      run: npm audit --audit-level=moderate
+      continue-on-error: true
+    
+    - name: Security audit frontend
+      working-directory: ./frontend
+      run: npm audit --audit-level=moderate
+      continue-on-error: true 

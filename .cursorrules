@@ -567,4 +567,178 @@ interface ChatMessage {
    - CORS設定の適切な管理
    - メディアアクセス権限の適切な処理
 
-// ... existing code ...
+## WebRTC + Socket.io 開発で実際に遭遇した問題と解決策
+
+### 重要な開発原則
+1. **フィールド名の一貫性**: フロントエンドとバックエンド間でメッセージフィールド名を完全に統一する
+2. **初期化順序**: Socket.io接続完了後にWebRTCサービスを初期化する
+3. **ユーザーID管理**: ルーム参加成功時に必ずcurrentUserIdを設定する
+4. **接続重複防止**: WebRTC接続開始を単一の責任で管理する
+
+### 1. Socket.ioとWebRTCの統合問題
+
+#### 問題: Socket.ioインスタンスの重複作成
+**症状**: バックエンドでSocket.io接続が認識されない、ログが表示されない
+**原因**: index.tsとSocketHandlerで別々にSocket.ioインスタンスを作成
+**解決策**:
+```typescript
+// ❌ 間違った実装（index.ts）
+const io = new Server(server, { cors: {...} });
+const socketHandler = new SocketHandler(io); // 別のインスタンスを作成
+
+// ✅ 正しい実装（index.ts）
+const socketHandler = new SocketHandler(server); // SocketHandler内で一元管理
+```
+
+#### 問題: CORS設定の環境変数不一致
+**症状**: フロントエンドから接続できない
+**原因**: index.tsとSocketHandlerで異なる環境変数名を使用
+**解決策**: 環境変数名を統一（`FRONTEND_URL`で統一）
+
+### 2. WebRTCシグナリングメッセージのフィールド名問題
+
+#### 問題: フィールド名の不一致によるユーザー検索失敗
+**症状**: `⚠️ ICE候補送信: ユーザー undefined が見つかりません`
+**原因**: フロントエンド送信時は`to`/`from`、バックエンド期待値は`toUserId`/`fromUserId`
+**解決策**: フィールド名を完全に統一
+```typescript
+// ✅ 送信時（フロントエンド）
+socketService.sendMessage('offer', {
+  type: 'offer',
+  data: offer,
+  toUserId: targetUserId,        // ← 統一
+  fromUserId: socketService.getCurrentUserId(),
+});
+
+// ✅ 受信時（フロントエンド）
+private async handleOffer(data: RTCOfferMessage): Promise<void> {
+  const { fromUserId, data: offer } = data;  // ← 統一
+  // ...
+}
+
+// ✅ バックエンド
+private handleOffer(socket: TypedSocket, message: SignalingMessage): void {
+  const targetUser = this.findUserById(message.toUserId);  // ← 統一
+  // ...
+}
+```
+
+### 3. ユーザーID管理とルーム参加処理
+
+#### 問題: currentUserIdがnullのためWebRTC接続失敗
+**症状**: 自分自身がリモートユーザーリストに含まれる、fromUserIdがnull
+**原因**: SocketServiceでroom-joinedイベント受信時にcurrentUserIdを設定していない
+**解決策**:
+```typescript
+// ✅ SocketService.connect()内で追加
+this.socket.on(SOCKET_EVENTS.ROOM_JOINED, (response: any) => {
+  if (response.user && response.user.id) {
+    this.currentUserId = response.user.id;
+    console.log(`✅ currentUserId を設定: ${this.currentUserId}`);
+  }
+});
+```
+
+### 4. WebRTC接続の重複開始問題
+
+#### 問題: 同一ユーザーへの重複接続試行
+**症状**: 接続が不安定、エラーが頻発
+**原因**: WebRTCServiceとVideoCallコンポーネントの両方で接続開始
+**解決策**: 接続開始の責任を一元化
+```typescript
+// ❌ WebRTCService内で自動接続（削除）
+socketService.on('user-joined', (user: any) => {
+  this.initiateCall(user.id); // ← これを削除
+});
+
+// ✅ VideoCallコンポーネントでのみ制御
+useEffect(() => {
+  tryStartConnections(); // ← ここで一元管理
+}, [tryStartConnections]);
+```
+
+### 5. デバッグとトラブルシューティングのベストプラクティス
+
+#### ログ出力の標準化
+```typescript
+// ✅ 推奨ログフォーマット
+console.log('🔍 [DEBUG] 状態確認:', { key: value });
+console.log('📤 [SEND] メッセージ送信:', eventName, data);
+console.log('📥 [RECV] メッセージ受信:', eventName, data);
+console.log('✅ [SUCCESS] 処理完了:', operation);
+console.log('⚠️ [WARN] 警告:', warning);
+console.log('❌ [ERROR] エラー:', error);
+```
+
+#### Socket.ioイベントのデバッグ
+```typescript
+// ✅ 全イベント監視（開発時のみ）
+socket.onAny((eventName: string, ...args: any[]) => {
+  console.log(`📡 受信イベント: ${eventName}`, args);
+});
+```
+
+### 6. 型定義とインターフェースの一貫性
+
+#### WebRTCメッセージ型の統一
+```typescript
+// ✅ 統一されたシグナリングメッセージ型
+interface SignalingMessage {
+  type: 'offer' | 'answer' | 'ice-candidate';
+  data: any;
+  toUserId: string;    // ← 必須
+  fromUserId: string;  // ← 必須
+}
+```
+
+### 7. エラーハンドリングの改善
+
+#### ユーザーフレンドリーなエラーメッセージ
+```typescript
+// ✅ 具体的な解決策を含むエラーメッセージ
+const handleError = (error: any) => {
+  if (error?.error?.code === 'USER_NOT_FOUND') {
+    alert(`WebRTC接続エラー: ${error.error.message}\n\n接続相手が見つかりません。ページを再読み込みしてみてください。`);
+  } else {
+    alert(`エラー (${error?.error?.code || 'UNKNOWN'}): ${error?.error?.message || error.message || 'unknown error'}`);
+  }
+};
+```
+
+### 8. 開発効率向上のためのツール設定
+
+#### 同時起動スクリプト
+```json
+// package.json (root)
+{
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev"
+  }
+}
+```
+
+### 9. 将来的な拡張を考慮した設計
+
+#### 型定義の拡張性
+- 新しいメッセージタイプの追加を考慮した型設計
+- ルーム機能の拡張（最大参加者数変更など）を考慮
+- チャット機能の拡張（ファイル送信、絵文字など）を考慮
+
+#### パフォーマンス最適化
+- 大人数ルーム対応（P2P → SFU への移行計画）
+- メディア品質の動的調整機能
+- 接続状態の詳細監視とレポート機能
+
+### 10. 本番環境での考慮事項
+
+#### セキュリティ強化
+- TURN サーバーの設定（coturn）
+- JWT トークンによる認証
+- ルームアクセス制御
+
+#### 運用監視
+- Socket.io接続数の監視
+- WebRTC接続成功率の測定
+- メディア品質の監視

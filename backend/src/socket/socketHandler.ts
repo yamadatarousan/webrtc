@@ -124,6 +124,8 @@ export class SocketHandler {
       socket.emit(SOCKET_EVENTS.ROOM_JOINED, response);
 
       // 他のユーザーに新しいユーザーの参加を通知
+      console.log(`🔔 USER_JOINED イベントを送信: ユーザー ${userName} (${userId}) がルーム ${roomId} に参加`);
+      console.log(`🔔 ルーム内の他のユーザー数: ${room.users.length - 1}`);
       socket.to(roomId).emit(SOCKET_EVENTS.USER_JOINED, { user });
 
       console.log(`ユーザー ${userName} がルーム ${roomId} に参加しました`);

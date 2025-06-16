@@ -409,177 +409,254 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
     }
   };
 
+
+
   // 接続状態の表示用スタイル
-  const getConnectionStateStyle = () => {
+  const getConnectionStateClass = () => {
     switch (connectionState) {
       case 'connected':
-        return { color: 'green' };
+        return 'text-secondary bg-secondary/10 border-secondary/20';
       case 'connecting':
       case 'reconnecting':
-        return { color: 'orange' };
+        return 'text-accent bg-accent/10 border-accent/20';
       case 'disconnected':
       case 'failed':
-        return { color: 'red' };
+        return 'text-danger bg-danger/10 border-danger/20';
       default:
-        return { color: 'gray' };
+        return 'text-gray-500 bg-gray-100 border-gray-200';
+    }
+  };
+
+  const getConnectionStateText = () => {
+    switch (connectionState) {
+      case 'connected':
+        return '✅ 接続中';
+      case 'connecting':
+        return '🔄 接続中...';
+      case 'reconnecting':
+        return '🔄 再接続中...';
+      case 'failed':
+        return '❌ 接続失敗';
+      default:
+        return '⚫ 切断済み';
     }
   };
 
   return (
-    <div className="video-call-container" style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h1>WebRTC ビデオ通話アプリ</h1>
-      
-      {/* 接続状態表示 */}
-      <div style={{ marginBottom: '20px' }}>
-        <span>接続状態: </span>
-        <span style={getConnectionStateStyle()}>
-          {connectionState === 'connected' ? '✅ 接続中' : 
-           connectionState === 'connecting' ? '🔄 接続中...' :
-           connectionState === 'reconnecting' ? '🔄 再接続中...' :
-           connectionState === 'failed' ? '❌ 接続失敗' :
-           '⚫ 切断済み'}
-        </span>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+      {/* ヘッダー */}
+      <div className="bg-white/10 backdrop-blur-md border-b border-white/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
+              🎥 WebRTC ビデオ通話
+            </h1>
+            
+            {/* 接続状態表示 */}
+            <div className={`px-4 py-2 rounded-full border backdrop-blur-sm ${getConnectionStateClass()}`}>
+              <span className="text-sm font-medium">
+                {getConnectionStateText()}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {!isInRoom ? (
-        /* ルーム参加フォーム */
-        <div className="join-form" style={{ marginBottom: '20px' }}>
-          <h2>ルームに参加</h2>
-          <div style={{ marginBottom: '10px' }}>
-            <input
-              type="text"
-              placeholder="ルームID (例: room1)"
-              value={roomId}
-              onChange={(e) => setRoomId(e.target.value)}
-              style={{ padding: '10px', marginRight: '10px', minWidth: '200px' }}
-            />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {!isInRoom ? (
+          /* ルーム参加フォーム */
+          <div className="max-w-md mx-auto">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-8 shadow-2xl">
+              <div className="text-center mb-8">
+                <div className="mx-auto w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">ルームに参加</h2>
+                <p className="text-gray-300">ルームIDと名前を入力してビデオ通話を開始</p>
+              </div>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    ルームID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="例: room1"
+                    value={roomId}
+                    onChange={(e) => setRoomId(e.target.value)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    あなたの名前
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="名前を入力"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                  />
+                </div>
+                
+                <button
+                  onClick={joinRoom}
+                  disabled={connectionState !== 'connected'}
+                  className={`w-full py-3 px-6 rounded-xl font-medium text-white transition-all duration-200 ${
+                    connectionState === 'connected'
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transform hover:scale-105 shadow-lg hover:shadow-xl'
+                      : 'bg-gray-600 cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  🚀 ルームに参加
+                </button>
+              </div>
+            </div>
           </div>
-          <div style={{ marginBottom: '10px' }}>
-            <input
-              type="text"
-              placeholder="あなたの名前"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              style={{ padding: '10px', marginRight: '10px', minWidth: '200px' }}
-            />
-          </div>
-          <button
-            onClick={joinRoom}
-            disabled={connectionState !== 'connected'}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: connectionState === 'connected' ? '#4CAF50' : '#ccc',
-              color: 'white',
-              border: 'none',
-              cursor: connectionState === 'connected' ? 'pointer' : 'not-allowed',
-            }}
-          >
-            ルームに参加
-          </button>
-        </div>
-      ) : (
-        /* ビデオ通話画面 */
-        <div className="video-call-screen">
-          <h2>ルーム: {roomId}</h2>
-          
-          {/* コントロールボタン */}
-          <div style={{ marginBottom: '20px' }}>
-            <button
-              onClick={toggleAudio}
-              style={{
-                padding: '10px 15px',
-                margin: '0 5px',
-                backgroundColor: isAudioEnabled ? '#4CAF50' : '#f44336',
-                color: 'white',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              {isAudioEnabled ? '🎤 音声ON' : '🔇 音声OFF'}
-            </button>
-            <button
-              onClick={toggleVideo}
-              style={{
-                padding: '10px 15px',
-                margin: '0 5px',
-                backgroundColor: isVideoEnabled ? '#4CAF50' : '#f44336',
-                color: 'white',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              {isVideoEnabled ? '📹 ビデオON' : '📷 ビデオOFF'}
-            </button>
-            <button
-              onClick={leaveRoom}
-              style={{
-                padding: '10px 15px',
-                margin: '0 5px',
-                backgroundColor: '#f44336',
-                color: 'white',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              🚪 退出
-            </button>
-          </div>
-
-          {/* ビデオ表示エリア */}
-          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-            {/* ローカルビデオ */}
-            <div>
-              <h3>あなた ({userName})</h3>
-              <video
-                ref={localVideoRef}
-                autoPlay
-                muted
-                playsInline
-                style={{
-                  width: '320px',
-                  height: '240px',
-                  backgroundColor: '#000',
-                  border: '2px solid #4CAF50',
-                }}
-              />
+        ) : (
+          /* ビデオ通話画面 */
+          <div className="space-y-8">
+            {/* ルーム情報とコントロール */}
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-2">📍 ルーム: {roomId}</h2>
+                  <p className="text-gray-300">👥 {remoteUsers.length + 1}人が参加中</p>
+                </div>
+                
+                {/* コントロールボタン */}
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={toggleAudio}
+                    className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 ${
+                      isAudioEnabled
+                        ? 'bg-secondary text-white shadow-lg hover:shadow-xl'
+                        : 'bg-danger text-white shadow-lg hover:shadow-xl'
+                    }`}
+                  >
+                    {isAudioEnabled ? '🎤 音声ON' : '🔇 音声OFF'}
+                  </button>
+                  <button
+                    onClick={toggleVideo}
+                    className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 ${
+                      isVideoEnabled
+                        ? 'bg-secondary text-white shadow-lg hover:shadow-xl'
+                        : 'bg-danger text-white shadow-lg hover:shadow-xl'
+                    }`}
+                  >
+                    {isVideoEnabled ? '📹 ビデオON' : '📷 ビデオOFF'}
+                  </button>
+                  <button
+                    onClick={leaveRoom}
+                    className="px-6 py-3 bg-danger text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl"
+                  >
+                    🚪 退出
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* リモートビデオ */}
-            {Array.from(remoteStreams.entries()).map(([userId, stream]) => (
-              <div key={userId}>
-                <h3>リモートユーザー ({userId})</h3>
-                <video
-                  ref={(video) => {
-                    if (video) {
-                      video.srcObject = stream;
-                      remoteVideoRefs.current.set(userId, video);
-                    }
-                  }}
-                  autoPlay
-                  playsInline
-                  style={{
-                    width: '320px',
-                    height: '240px',
-                    backgroundColor: '#000',
-                    border: '2px solid #2196F3',
-                  }}
-                />
+            {/* ビデオグリッド */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {/* ローカルビデオ */}
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-4 shadow-xl">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-white">👤 {userName}</h3>
+                  <span className="px-3 py-1 bg-secondary/20 text-secondary text-xs font-medium rounded-full">
+                    あなた
+                  </span>
+                </div>
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-900 border-2 border-secondary/30">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                  {!isVideoEnabled && (
+                    <div className="absolute inset-0 bg-gray-800 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
+                          <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <p className="text-gray-400 text-sm">カメラOFF</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
 
-          {/* 参加ユーザー一覧 */}
-          <div style={{ marginTop: '20px' }}>
-            <h3>参加ユーザー ({remoteUsers.length + 1}人)</h3>
-            <ul>
-              <li>{userName} (あなた)</li>
-              {remoteUsers.map(user => (
-                <li key={user.id}>ユーザー {user.name} ({user.id})</li>
-              ))}
-            </ul>
+              {/* リモートビデオ */}
+              {Array.from(remoteStreams.entries()).map(([userId, stream]) => {
+                const user = remoteUsers.find(u => u.id === userId);
+                return (
+                  <div key={userId} className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-4 shadow-xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-white">👤 {user?.name || 'ユーザー'}</h3>
+                      <span className="px-3 py-1 bg-primary/20 text-primary text-xs font-medium rounded-full">
+                        リモート
+                      </span>
+                    </div>
+                    <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-900 border-2 border-primary/30">
+                      <video
+                        ref={(video) => {
+                          if (video) {
+                            video.srcObject = stream;
+                            remoteVideoRefs.current.set(userId, video);
+                          }
+                        }}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 参加者一覧 */}
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6">
+              <h3 className="text-xl font-bold text-white mb-4">👥 参加者一覧</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="flex items-center space-x-3 p-3 bg-secondary/10 rounded-xl border border-secondary/20">
+                  <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
+                    <span className="text-white font-medium text-sm">
+                      {userName.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">{userName}</p>
+                    <p className="text-secondary text-sm">あなた</p>
+                  </div>
+                </div>
+                
+                {remoteUsers.map(user => (
+                  <div key={user.id} className="flex items-center space-x-3 p-3 bg-primary/10 rounded-xl border border-primary/20">
+                    <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+                      <span className="text-white font-medium text-sm">
+                        {user.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">{user.name}</p>
+                      <p className="text-primary text-sm">リモートユーザー</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }; 

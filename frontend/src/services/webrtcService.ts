@@ -31,6 +31,26 @@ const RTC_CONFIG: RTCConfiguration = {
   iceCandidatePoolSize: 10,
 };
 
+/**
+ * WebRTCビデオ通話の接続管理を担当するサービスクラス。
+ * 
+ * このクラスは以下の主要な機能を提供します：
+ * 1. WebRTCピア接続の確立と管理
+ * 2. メディアストリーム（音声・映像）の送受信
+ * 3. シグナリングメッセージ（offer/answer/ICE候補）の処理
+ * 4. 接続状態の監視とエラーハンドリング
+ * 
+ * 主な処理フロー：
+ * - 通話開始時：initiateCall()でOfferを生成・送信
+ * - 通話受信時：handleOffer()でAnswerを生成・送信
+ * - 接続確立時：ICE候補の交換と接続状態の監視
+ * - 通話終了時：closePeerConnection()でリソースを解放
+ * 
+ * シングルトンパターンを採用しており、アプリケーション全体で1つのインスタンスを共有します。
+ * 
+ * @class WebRTCService
+ * @since 1.0.0
+ */
 export class WebRTCService {
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
   private localStream: MediaStream | null = null;

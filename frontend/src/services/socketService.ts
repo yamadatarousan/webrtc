@@ -450,21 +450,21 @@ export class SocketService {
   /**
    * チャットメッセージを送信
    * 
-   * 現在参加中のルームにチャットメッセージを送信します。
-   * サーバー側でバリデーションされ、ルーム内の全参加者に配信されます。
+   * 指定されたルームにチャットメッセージを送信します。
+   * Socket.io の 'chat-message-send' イベントを使用してサーバーに送信され、
+   * サーバーがルーム内の全メンバーに 'chat-message-received' イベントで配信します。
    * 
-   * @param request - チャットメッセージ送信要求
+   * @param request - チャットメッセージ送信リクエスト
    * @returns {void}
    * 
    * @example
    * ```typescript
-   * // チャット送信フォームのハンドラー
-   * const handleSendMessage = (messageText: string) => {
-   *   if (!messageText.trim()) return;
-   *   
+   * // React コンポーネントでのチャットメッセージ送信
+   * const sendMessage = () => {
    *   const sendRequest: SendChatMessageRequest = {
-   *     roomId: currentRoom.id,
-   *     message: messageText.trim()
+   *     roomId: currentRoomId,
+   *     message: inputMessage.trim(),
+   *     userName: currentUserName
    *   };
    *   
    *   socketService.sendChatMessage(sendRequest);
@@ -473,6 +473,17 @@ export class SocketService {
    * ```
    */
   public sendChatMessage(request: SendChatMessageRequest): void {
+    // デバッグ情報を詳細に出力
+    console.log('🔍 [DEBUG] チャット送信前の状態確認:', {
+      hasSocket: !!this.socket,
+      socketConnected: this.socket?.connected,
+      isConnectedFlag: this.isConnected,
+      getConnectionStatus: this.getConnectionStatus(),
+      isSocketConnected: this.isSocketConnected(),
+      socketId: this.socket?.id,
+      serverUrl: this.serverUrl
+    });
+
     if (!this.socket || !this.isConnected) {
       console.error('❌ Socket.io が接続されていません');
       return;

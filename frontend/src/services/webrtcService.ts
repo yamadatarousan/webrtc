@@ -1,9 +1,26 @@
 import { socketService } from './socketService';
-import type { 
-  RTCOfferMessage, 
-  RTCAnswerMessage, 
-  RTCIceCandidateMessage
-} from '../types/webrtcTypes';
+
+// 型定義をローカルで定義（webrtcTypes.tsが見つからない問題を回避）
+interface RTCOfferMessage {
+  type: 'offer';
+  data: RTCSessionDescriptionInit;
+  fromUserId: string;
+  toUserId: string;
+}
+
+interface RTCAnswerMessage {
+  type: 'answer';
+  data: RTCSessionDescriptionInit;
+  fromUserId: string;
+  toUserId: string;
+}
+
+interface RTCIceCandidateMessage {
+  type: 'ice-candidate';
+  data: RTCIceCandidateInit;
+  fromUserId: string;
+  toUserId: string;
+}
 
 // WebRTC設定
 const RTC_CONFIG: RTCConfiguration = {
@@ -14,6 +31,26 @@ const RTC_CONFIG: RTCConfiguration = {
   iceCandidatePoolSize: 10,
 };
 
+/**
+ * WebRTCビデオ通話の接続管理を担当するサービスクラス。
+ * 
+ * このクラスは以下の主要な機能を提供します：
+ * 1. WebRTCピア接続の確立と管理
+ * 2. メディアストリーム（音声・映像）の送受信
+ * 3. シグナリングメッセージ（offer/answer/ICE候補）の処理
+ * 4. 接続状態の監視とエラーハンドリング
+ * 
+ * 主な処理フロー：
+ * - 通話開始時：initiateCall()でOfferを生成・送信
+ * - 通話受信時：handleOffer()でAnswerを生成・送信
+ * - 接続確立時：ICE候補の交換と接続状態の監視
+ * - 通話終了時：closePeerConnection()でリソースを解放
+ * 
+ * シングルトンパターンを採用しており、アプリケーション全体で1つのインスタンスを共有します。
+ * 
+ * @class WebRTCService
+ * @since 1.0.0
+ */
 export class WebRTCService {
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
   private localStream: MediaStream | null = null;
@@ -95,9 +132,11 @@ export class WebRTCService {
           return;
         }
 
-        // 既存接続をクリーンアップ
+        // 既存接続をクリーンアップ（非同期で少し待機）
         console.log('🧹 既存接続をクリーンアップ:', targetUserId);
         this.closePeerConnection(targetUserId);
+        // クリーンアップ後に少し待機
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       // RTCPeerConnectionを作成
@@ -222,9 +261,11 @@ export class WebRTCService {
           return;
         }
 
-        // 既存接続をクリーンアップ
+        // 既存接続をクリーンアップ（非同期で少し待機）
         console.log('🧹 既存接続をクリーンアップ:', fromUserId);
         this.closePeerConnection(fromUserId!);
+        // クリーンアップ後に少し待機
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       // RTCPeerConnectionを作成
@@ -275,6 +316,12 @@ export class WebRTCService {
         audioTracks: this.localStream!.getAudioTracks().length
       });
       
+      // 接続状態をチェックしてからトラックを追加
+      if (peerConnection.connectionState === 'closed') {
+        console.error('❌ Offer処理中断 - ピア接続が閉じられています:', fromUserId);
+        return;
+      }
+      
       this.localStream!.getTracks().forEach((track, index) => {
         console.log(`📤 Offer処理 - トラック ${index} を追加:`, {
           kind: track.kind,
@@ -282,7 +329,17 @@ export class WebRTCService {
           enabled: track.enabled,
           readyState: track.readyState
         });
-        peerConnection.addTrack(track, this.localStream!);
+        
+        try {
+          // トラック追加前に再度接続状態をチェック
+          if (peerConnection.connectionState !== 'closed') {
+            peerConnection.addTrack(track, this.localStream!);
+          } else {
+            console.warn('⚠️ トラック追加スキップ - 接続が閉じられています:', { fromUserId, trackIndex: index });
+          }
+        } catch (error) {
+          console.error('❌ トラック追加エラー:', { fromUserId, trackIndex: index, error });
+        }
       });
 
       // リモートのOfferを設定
@@ -313,30 +370,42 @@ export class WebRTCService {
 
     try {
       const peerConnection = this.peerConnections.get(fromUserId!);
-      if (peerConnection) {
-        // RTCPeerConnectionの状態をチェック
-        console.log('🔍 RTCPeerConnection状態:', {
-          signalingState: peerConnection.signalingState,
-          iceConnectionState: peerConnection.iceConnectionState,
-          connectionState: peerConnection.connectionState
-        });
-
-        // signalingStateが適切な状態の場合のみAnswerを設定
-        if (peerConnection.signalingState === 'have-local-offer') {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-          console.log('✅ Answer処理完了:', fromUserId);
-        } else {
-          console.warn('⚠️ Answer無視 - 不適切な状態:', {
-            fromUserId,
-            signalingState: peerConnection.signalingState,
-            expected: 'have-local-offer'
-          });
-        }
-      } else {
+      if (!peerConnection) {
         console.warn('⚠️ Answer無視 - ピア接続が見つかりません:', fromUserId);
+        return;
+      }
+
+      // 接続状態をチェック
+      if (peerConnection.connectionState === 'closed') {
+        console.warn('⚠️ Answer無視 - 接続が閉じられています:', fromUserId);
+        return;
+      }
+
+      // RTCPeerConnectionの状態をチェック
+      console.log('🔍 RTCPeerConnection状態:', {
+        signalingState: peerConnection.signalingState,
+        iceConnectionState: peerConnection.iceConnectionState,
+        connectionState: peerConnection.connectionState
+      });
+
+      // signalingStateが適切な状態の場合のみAnswerを設定
+      if (peerConnection.signalingState === 'have-local-offer') {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        console.log('✅ Answer処理完了:', fromUserId);
+      } else {
+        console.warn('⚠️ Answer無視 - 不適切な状態:', {
+          fromUserId,
+          signalingState: peerConnection.signalingState,
+          expected: 'have-local-offer'
+        });
       }
     } catch (error) {
       console.error('❌ Answer処理エラー:', error);
+      console.error('🔍 Answer処理エラー詳細:', {
+        fromUserId,
+        peerConnectionState: this.peerConnections.get(fromUserId!)?.connectionState,
+        signalingState: this.peerConnections.get(fromUserId!)?.signalingState
+      });
     }
   }
 
@@ -347,12 +416,40 @@ export class WebRTCService {
 
     try {
       const peerConnection = this.peerConnections.get(fromUserId!);
-      if (peerConnection) {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log('✅ ICE候補追加完了:', fromUserId);
+      if (!peerConnection) {
+        console.warn('⚠️ ICE候補無視 - ピア接続が見つかりません:', fromUserId);
+        return;
       }
+
+      // 接続状態をチェック
+      if (peerConnection.connectionState === 'closed') {
+        console.warn('⚠️ ICE候補無視 - 接続が閉じられています:', fromUserId);
+        return;
+      }
+
+      // リモート記述が設定されているかチェック
+      if (!peerConnection.remoteDescription) {
+        console.warn('⚠️ ICE候補無視 - リモート記述が設定されていません:', fromUserId);
+        return;
+      }
+
+      // ICE候補が有効かチェック
+      if (!candidate || !candidate.candidate) {
+        console.warn('⚠️ ICE候補無視 - 無効な候補:', { fromUserId, candidate });
+        return;
+      }
+
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      console.log('✅ ICE候補追加完了:', fromUserId);
     } catch (error) {
       console.error('❌ ICE候補処理エラー:', error);
+      console.error('🔍 エラー詳細:', {
+        fromUserId,
+        candidate,
+        peerConnectionState: this.peerConnections.get(fromUserId!)?.connectionState,
+        signalingState: this.peerConnections.get(fromUserId!)?.signalingState,
+        remoteDescriptionExists: !!this.peerConnections.get(fromUserId!)?.remoteDescription
+      });
     }
   }
 

@@ -1,0 +1,142 @@
+# Claude Code Development Rules for WebRTC Project
+# このファイルはClaude Codeでの開発時に一貫性を保つためのルールを定義します
+
+## 基本原則
+- **日本語での応答**: コメント、ドキュメント、ログメッセージは日本語で記述
+- **簡潔性**: 不要な説明や前置きは避け、4行以内での応答を心がける
+- **実用性**: 実際に動作するコードの提供を最優先
+- **安全性**: セキュリティベストプラクティスの遵守
+
+## プロジェクト構造
+```
+webrtc/
+├── backend/src/          # バックエンド（Node.js + TypeScript + Socket.io）
+├── frontend/src/         # フロントエンド（React + TypeScript + Vite）
+├── shared/              # 共通型定義
+├── .github/workflows/   # GitHub Actions CI/CD
+└── CLAUDE.md           # プロジェクト documentation
+```
+
+## 技術スタック
+- **バックエンド**: Node.js 20, TypeScript 5, Express.js, Socket.io
+- **フロントエンド**: React 19, TypeScript 5, Vite, TailwindCSS
+- **WebRTC**: MediaStream API, RTCPeerConnection
+- **スタイリング**: TailwindCSS, Glassmorphism デザイン
+- **CI/CD**: GitHub Actions
+- **パッケージ管理**: npm
+
+## コーディング規約
+
+### TypeScript
+- 厳密な型定義を使用（`any`の使用は最小限に）
+- インターフェースには日本語コメントを付与
+- エラーハンドリングは必須
+
+### React
+- 関数コンポーネント + Hooks を使用
+- useCallback, useMemo で最適化
+- JSX内での直接的な関数定義は避ける
+
+### WebRTC
+- メモリリーク防止のためMediaStreamトラックの適切な停止
+- レースコンディション対策の実装
+- 接続状態の詳細な監視とログ
+
+### Socket.io
+- イベント名は SOCKET_EVENTS 定数を使用
+- 型安全なイベントハンドリング
+- 接続安定性の確保（再接続、タイムアウト設定）
+
+### スタイリング
+- TailwindCSS クラスの使用
+- Glassmorphism エフェクト（backdrop-blur, bg-white/5）
+- レスポンシブデザイン必須
+- アクセシビリティ配慮
+
+## ファイル命名規約
+- コンポーネント: PascalCase (VideoCall.tsx)
+- サービス: camelCase (socketService.ts)
+- 型定義: camelCase (webrtcTypes.ts)
+- 設定ファイル: kebab-case (eslint.config.js)
+
+## エラーハンドリング
+- console.error でエラーログ出力（日本語）
+- ユーザー向けエラーメッセージは日本語
+- 例外は適切にcatch & handle
+- WebRTC関連エラーは詳細なデバッグ情報を含める
+
+## ログ規約
+```javascript
+console.log('✅ 成功メッセージ');
+console.warn('⚠️ 警告メッセージ'); 
+console.error('❌ エラーメッセージ');
+console.log('🔗 WebRTC接続関連');
+console.log('📡 Socket.io通信関連');
+console.log('📹 メディアストリーム関連');
+```
+
+## Git コミット規約
+- 日本語でのコミットメッセージ
+- 変更内容の簡潔な要約
+- 必ず Claude Code の生成クレジット追加:
+```
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+## Todo管理
+- 複雑なタスクは必ずTodoWrite toolを使用
+- タスクの状態管理: pending → in_progress → completed
+- 日本語でのタスク記述
+
+## パフォーマンス
+- WebRTC接続の最適化
+- React レンダリングの最適化
+- メモリリークの防止
+- バンドルサイズの最小化
+
+## セキュリティ
+- 秘密情報のハードコード禁止
+- CORS設定の適切な管理
+- XSS対策の実装
+- セキュリティヘッダーの設定
+
+## デバッグ
+- 詳細なログ出力（特にWebRTC関連）
+- エラー発生時の状態情報収集
+- デバッグ用APIエンドポイントの活用
+
+## テスト
+- 重要な機能のユニットテスト
+- GitHub Actions でのCI/CD確認
+- クロスブラウザテスト対応
+
+## ドキュメント
+- CLAUDE.md の継続的更新
+- JSDoc コメントの日本語記述
+- README.md の保守
+
+## 禁止事項
+- セキュリティリスクのあるコード
+- 不要なコメントや説明の冗長性
+- any型の乱用
+- メモリリークの原因となるコード
+- 悪意のあるコードの生成や説明
+
+## 優先順位
+1. 機能性と動作の安定性
+2. セキュリティ
+3. パフォーマンス
+4. 保守性
+5. コードの美しさ
+
+## 開発フロー
+1. 既存コードの理解
+2. CLAUDE.rules の確認
+3. 適切なツール選択（Read, Edit, MultiEdit, etc.）
+4. 実装
+5. テスト
+6. Git コミット
+
+このルールファイルを参照して、一貫性のある高品質な開発を行ってください。

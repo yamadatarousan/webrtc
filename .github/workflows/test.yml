@@ -1,0 +1,48 @@
+name: Test Workflow
+
+on:
+  push:
+    branches: [ main, develop, dev ]
+  pull_request:
+    branches: [ main, develop, dev ]
+
+jobs:
+  test:
+    name: Test GitHub Actions
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Print environment
+      run: |
+        echo "Node version: $(node --version)"
+        echo "NPM version: $(npm --version)"
+        echo "Current directory: $(pwd)"
+        echo "Files in root:"
+        ls -la
+    
+    - name: Check package.json
+      run: |
+        if [ -f package.json ]; then
+          echo "Root package.json found"
+          npm --version
+        else
+          echo "No package.json in root"
+        fi
+    
+    - name: Check frontend
+      run: |
+        if [ -d frontend ]; then
+          echo "Frontend directory exists"
+          cd frontend
+          if [ -f package.json ]; then
+            echo "Frontend package.json found"
+          fi
+        fi

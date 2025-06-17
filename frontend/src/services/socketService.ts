@@ -16,11 +16,14 @@
  * @version 1.0.0
  */
 
-import { io, Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import type {
   SignalingMessage,
   ConnectionState,
-  JoinRoomResponse
+  JoinRoomResponse,
+  JoinRoomRequest,
+  SendChatMessageRequest
 } from '../types/webrtcTypes';
 import { SOCKET_EVENTS } from '../types/webrtcTypes';
 
@@ -30,7 +33,7 @@ import { SOCKET_EVENTS } from '../types/webrtcTypes';
  * サーバーからのイベントを受信した際に実行される関数の型定義です。
  * 可変長引数を受け取り、戻り値は不要です。
  */
-type EventCallback = (...args: unknown[]) => void;
+type EventCallback = (...args: any[]) => void;
 
 /**
  * WebRTCシグナリングサーバーのSocket.io接続を管理するサービスクラス

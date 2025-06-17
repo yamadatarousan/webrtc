@@ -13,8 +13,8 @@
     "start": "node dist/backend/src/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "lint": "eslint backend/src",
+    "lint:fix": "eslint backend/src --fix"
   },
   "dependencies": {
     "express": "^4.19.2",

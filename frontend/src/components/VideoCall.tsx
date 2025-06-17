@@ -39,6 +39,7 @@ import {
  * 
  * @interface VideoCallProps
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface VideoCallProps {}
 
 /**
@@ -120,20 +121,22 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
     initializeSocket();
   }, []);
 
-  // 接続状態の定期チェック
+  // 接続状態の監視（イベント駆動）
   useEffect(() => {
-    const checkConnectionState = () => {
+    const updateConnectionState = () => {
       const currentState = socketService.getConnectionState();
       setConnectionState(currentState);
     };
 
     // 初回実行
-    checkConnectionState();
+    updateConnectionState();
 
-    // 1秒間隔で接続状態をチェック
-    const interval = setInterval(checkConnectionState, 1000);
+    // 接続状態変更イベントを監視
+    socketService.on('connection-state-changed', updateConnectionState);
 
-    return () => clearInterval(interval);
+    return () => {
+      socketService.off('connection-state-changed', updateConnectionState);
+    };
   }, []);
 
   // 状態管理
@@ -142,6 +145,28 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
   // Refs
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
 
+  // ローカルメディアストリームを停止
+  const stopLocalStream = useCallback(() => {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+      
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
+    }
+  }, [localStream]);
+
+  // ルームから退出
+  const leaveRoom = useCallback(() => {
+    socketService.leaveRoom();
+    webrtcService.closeAllConnections();
+    stopLocalStream();
+    setIsInRoom(false);
+    setRemoteUsers([]);
+    setRemoteStreams(new Map());
+  }, [stopLocalStream]);
+
   // Socket.ioイベントリスナーの設定
   useEffect(() => {
     const handleConnectionStateChange = (state: ConnectionState) => {
@@ -149,7 +174,7 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
       console.log('接続状態変更:', state);
     };
 
-    const handleRoomJoined = async (response: any) => {
+    const handleRoomJoined = async (response: { room: { users: User[] } }) => {
       console.log('ルーム参加成功:', response);
       setIsInRoom(true);
       
@@ -170,21 +195,30 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
       }
 
       // ルーム参加成功後にメディアストリームを取得
-      try {
-        console.log('📹 ルーム参加成功、メディアストリーム取得開始...');
-        // 少し待ってからメディアストリームを取得（DOM要素がレンダリングされるまで）
-        setTimeout(async () => {
-          try {
-            await startLocalStream();
-          } catch (error) {
-            console.error('❌ メディアストリーム取得失敗:', error);
-            alert('カメラ・マイクの取得に失敗しました。ルームから退出します。');
-            leaveRoom();
+      console.log('📹 ルーム参加成功、メディアストリーム取得開始...');
+      // 少し待ってからメディアストリームを取得（DOM要素がレンダリングされるまで）
+      setTimeout(async () => {
+        try {
+          await startLocalStream();
+        } catch (error: unknown) {
+          console.error('❌ メディアストリーム取得失敗:', error);
+          
+          // エラーの種類を特定してユーザーに適切なメッセージを表示
+          let errorMessage = 'カメラ・マイクの取得に失敗しました。';
+          if (error instanceof Error) {
+            if (error.name === 'NotAllowedError') {
+              errorMessage = 'カメラ・マイクのアクセス許可が必要です。ブラウザの設定を確認してください。';
+            } else if (error.name === 'NotFoundError') {
+              errorMessage = 'カメラまたはマイクが見つかりません。デバイスが接続されているか確認してください。';
+            } else if (error.name === 'NotReadableError') {
+              errorMessage = 'カメラまたはマイクが他のアプリケーションで使用中の可能性があります。';
+            }
           }
-        }, 100);
-      } catch (error) {
-        console.error('❌ メディアストリーム初期化失敗:', error);
-      }
+          
+          alert(errorMessage + 'ルームから退出します。');
+          leaveRoom();
+        }
+      }, 100);
     };
 
     const handleUserJoined = (user: User) => {
@@ -210,7 +244,7 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
       connectedUsersRef.current.delete(userId);
     };
 
-    const handleError = (error: any) => {
+    const handleError = (error: { error?: { code: string; message: string } }) => {
       console.error('エラー:', error);
       
       // エラーの詳細な内容を確認
@@ -246,7 +280,7 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
       socketService.off('user-left', handleUserLeft);
       socketService.off('error', handleError);
     };
-  }, []); // 依存配列は空のままでOK - イベントハンドラー自体はlocalStreamに依存しない
+  }, [leaveRoom]); // leaveRoomの依存関係を追加
 
   // WebRTCイベントリスナーの設定
   useEffect(() => {
@@ -464,18 +498,6 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
     }
   };
 
-  // ローカルメディアストリームを停止
-  const stopLocalStream = () => {
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-      setLocalStream(null);
-      
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = null;
-      }
-    }
-  };
-
   // ルームに参加
   const joinRoom = async () => {
     if (!roomId.trim() || !userName.trim()) {
@@ -501,16 +523,6 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
       console.error('ルーム参加エラー:', error);
       alert('ルームへの参加に失敗しました');
     }
-  };
-
-  // ルームから退出
-  const leaveRoom = () => {
-    socketService.leaveRoom();
-    webrtcService.closeAllConnections();
-    stopLocalStream();
-    setIsInRoom(false);
-    setRemoteUsers([]);
-    setRemoteStreams(new Map());
   };
 
   // 音声のON/OFF切り替え
@@ -735,6 +747,13 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
                           if (video) {
                             video.srcObject = stream;
                             remoteVideoRefs.current.set(userId, video);
+                          } else {
+                            // video要素がunmountされる際のクリーンアップ
+                            const existingVideo = remoteVideoRefs.current.get(userId);
+                            if (existingVideo) {
+                              existingVideo.srcObject = null;
+                              remoteVideoRefs.current.delete(userId);
+                            }
                           }
                         }}
                         autoPlay

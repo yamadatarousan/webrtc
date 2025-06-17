@@ -37,7 +37,7 @@ export interface SignalingMessage {
   fromUserId: string;
   toUserId: string;
   type: 'offer' | 'answer' | 'ice-candidate';
-  data: any;
+  data: RTCSessionDescriptionInit | RTCIceCandidateInit;
   from?: string; // WebRTCServiceとの互換性のため
 }
 

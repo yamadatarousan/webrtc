@@ -19,15 +19,8 @@
 import { io, Socket } from 'socket.io-client';
 import type {
   SignalingMessage,
-  User,
-  Room,
-  JoinRoomRequest,
-  JoinRoomResponse,
-  WebRTCError,
-  ChatMessage,
-  SendChatMessageRequest,
-  ChatMessageReceived,
-  ConnectionState
+  ConnectionState,
+  JoinRoomResponse
 } from '../types/webrtcTypes';
 import { SOCKET_EVENTS } from '../types/webrtcTypes';
 
@@ -37,7 +30,7 @@ import { SOCKET_EVENTS } from '../types/webrtcTypes';
  * サーバーからのイベントを受信した際に実行される関数の型定義です。
  * 可変長引数を受け取り、戻り値は不要です。
  */
-type EventCallback = (...args: any[]) => void;
+type EventCallback = (...args: unknown[]) => void;
 
 /**
  * WebRTCシグナリングサーバーのSocket.io接続を管理するサービスクラス
@@ -223,7 +216,7 @@ export class SocketService {
         });
 
         // ルーム参加成功イベント
-        this.socket.on(SOCKET_EVENTS.ROOM_JOINED, (response: any) => {
+        this.socket.on(SOCKET_EVENTS.ROOM_JOINED, (response: JoinRoomResponse) => {
           // currentUserId を設定
           if (response.user && response.user.id) {
             this.currentUserId = response.user.id;
@@ -700,7 +693,7 @@ export class SocketService {
    * @param eventName - 送信するイベント名
    * @param data - 送信するデータ
    */
-  public sendMessage(eventName: string, data: any): void {
+  public sendMessage(eventName: string, data: unknown): void {
     if (!this.socket || !this.isConnected) {
       console.error('❌ Socket.io が接続されていません');
       return;
@@ -725,7 +718,7 @@ export class SocketService {
    * @param eventName - イベント名
    * @param data - イベントデータ
    */
-  private emit(eventName: string, data?: any): void {
+  private emit(eventName: string, data?: unknown): void {
     const listeners = this.eventListeners.get(eventName);
     if (listeners) {
       listeners.forEach(callback => {

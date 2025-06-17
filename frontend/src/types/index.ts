@@ -5,7 +5,7 @@
  */
 export interface SignalingMessage {
   type: 'offer' | 'answer' | 'ice-candidate' | 'join' | 'leave' | 'user-joined' | 'user-left';
-  payload: any;
+  payload: unknown;
   roomId: string;
   userId: string;
   timestamp: number;
@@ -72,7 +72,7 @@ export interface CallSettings {
 export interface WebRTCError {
   code: string;
   message: string;
-  details?: any;
+  details?: unknown;
   timestamp: number;
 }
 

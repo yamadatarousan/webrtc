@@ -55,8 +55,10 @@ export class WebRTCService {
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
   private localStream: MediaStream | null = null;
   private remoteStreams: Map<string, MediaStream> = new Map();
-  private listeners: Map<string, Function[]> = new Map();
+  private listeners: Map<string, Array<(...args: unknown[]) => void>> = new Map();
   private isSocketListenersSetup: boolean = false;
+  // レースコンディション対策用のロック機構
+  private connectionOperations: Map<string, Promise<void>> = new Map();
 
   constructor() {
     // Socket.ioの初期化を待ってからsetupSocketListenersを呼ぶため、
@@ -114,6 +116,26 @@ export class WebRTCService {
       return;
     }
 
+    // レースコンディション対策：既に接続処理中の場合は待機
+    if (this.connectionOperations.has(targetUserId)) {
+      console.log('⏳ 接続処理中のため待機:', targetUserId);
+      await this.connectionOperations.get(targetUserId);
+      return;
+    }
+
+    // 接続処理を開始
+    const connectionPromise = this.performInitiateCall(targetUserId);
+    this.connectionOperations.set(targetUserId, connectionPromise);
+
+    try {
+      await connectionPromise;
+    } finally {
+      this.connectionOperations.delete(targetUserId);
+    }
+  }
+
+  // 実際の接続処理（レースコンディション対策後）
+  private async performInitiateCall(targetUserId: string): Promise<void> {
     try {
       // 既存の接続があるかチェック
       if (this.peerConnections.has(targetUserId)) {
@@ -180,6 +202,12 @@ export class WebRTCService {
       console.log('📤 Offerを送信:', targetUserId);
     } catch (error) {
       console.error('❌ 通話開始エラー:', error);
+      this.emit('webrtc-error', { 
+        type: 'offer-creation-failed', 
+        userId: targetUserId, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+      throw error; // エラーを再スローして呼び出し元に伝播
     }
   }
 
@@ -223,11 +251,23 @@ export class WebRTCService {
     // 接続状態の変更
     peerConnection.onconnectionstatechange = () => {
       console.log('🔗 接続状態変更:', userId, peerConnection.connectionState);
-      if (peerConnection.connectionState === 'connected') {
-        console.log('✅ WebRTC接続成功:', userId);
-      } else if (peerConnection.connectionState === 'failed') {
-        console.log('❌ WebRTC接続失敗:', userId);
-        this.closePeerConnection(userId);
+      
+      switch (peerConnection.connectionState) {
+        case 'connected':
+          console.log('✅ WebRTC接続成功:', userId);
+          this.emit('connection-established', { userId });
+          break;
+        case 'failed':
+        case 'disconnected':
+          console.log('❌ WebRTC接続問題:', userId, peerConnection.connectionState);
+          this.emit('connection-failed', { userId, state: peerConnection.connectionState });
+          if (peerConnection.connectionState === 'failed') {
+            this.closePeerConnection(userId);
+          }
+          break;
+        case 'connecting':
+          this.emit('connection-attempting', { userId });
+          break;
       }
     };
 
@@ -244,6 +284,25 @@ export class WebRTCService {
     const { fromUserId, data: offer } = data;
     console.log('📥 Offerを受信:', fromUserId);
 
+    // レースコンディション対策：既に接続処理中の場合は待機
+    if (this.connectionOperations.has(fromUserId!)) {
+      console.log('⏳ 接続処理中のため待機:', fromUserId);
+      await this.connectionOperations.get(fromUserId!);
+    }
+
+    // 接続処理を開始
+    const connectionPromise = this.performHandleOffer(fromUserId!, offer);
+    this.connectionOperations.set(fromUserId!, connectionPromise);
+
+    try {
+      await connectionPromise;
+    } finally {
+      this.connectionOperations.delete(fromUserId!);
+    }
+  }
+
+  // 実際のOffer処理（レースコンディション対策後）
+  private async performHandleOffer(fromUserId: string, offer: RTCSessionDescriptionInit): Promise<void> {
     try {
       // 既存の接続があるかチェック
       if (this.peerConnections.has(fromUserId!)) {
@@ -457,27 +516,69 @@ export class WebRTCService {
   private closePeerConnection(userId: string): void {
     const peerConnection = this.peerConnections.get(userId);
     if (peerConnection) {
+      // Sendersのトラックを停止
+      peerConnection.getSenders().forEach(sender => {
+        if (sender.track) {
+          sender.track.stop();
+        }
+      });
+      
+      // Receiversのトラックも停止
+      peerConnection.getReceivers().forEach(receiver => {
+        if (receiver.track) {
+          receiver.track.stop();
+        }
+      });
+      
       peerConnection.close();
       this.peerConnections.delete(userId);
     }
 
-    // リモートストリームを削除
-    if (this.remoteStreams.has(userId)) {
+    // リモートストリームを適切にクリーンアップ
+    const remoteStream = this.remoteStreams.get(userId);
+    if (remoteStream) {
+      // ストリーム内の全トラックを停止
+      remoteStream.getTracks().forEach(track => {
+        track.stop();
+      });
       this.remoteStreams.delete(userId);
       this.emit('remote-stream-removed', { userId });
     }
 
-    console.log('🔗 ピア接続を終了:', userId);
+    console.log('🔗 ピア接続を終了（メモリリーク対策完了）:', userId);
   }
 
   // 全ての接続を終了
   closeAllConnections(): void {
+    // 各ピア接続のトラックを適切に停止
     this.peerConnections.forEach((peerConnection) => {
+      // Sendersのトラックを停止
+      peerConnection.getSenders().forEach(sender => {
+        if (sender.track) {
+          sender.track.stop();
+        }
+      });
+      
+      // Receiversのトラックも停止
+      peerConnection.getReceivers().forEach(receiver => {
+        if (receiver.track) {
+          receiver.track.stop();
+        }
+      });
+      
       peerConnection.close();
     });
+    
+    // 全てのリモートストリームのトラックを停止
+    this.remoteStreams.forEach((stream) => {
+      stream.getTracks().forEach(track => {
+        track.stop();
+      });
+    });
+    
     this.peerConnections.clear();
     this.remoteStreams.clear();
-    console.log('🔗 全てのピア接続を終了');
+    console.log('🔗 全てのピア接続を終了（メモリリーク対策完了）');
   }
 
   // リモートストリームを取得
@@ -491,7 +592,7 @@ export class WebRTCService {
   }
 
   // イベントリスナーを追加
-  on(event: string, callback: Function): void {
+  on(event: string, callback: (...args: unknown[]) => void): void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
@@ -499,7 +600,7 @@ export class WebRTCService {
   }
 
   // イベントリスナーを削除
-  off(event: string, callback: Function): void {
+  off(event: string, callback: (...args: unknown[]) => void): void {
     const eventListeners = this.listeners.get(event);
     if (eventListeners) {
       const index = eventListeners.indexOf(callback);
@@ -510,7 +611,7 @@ export class WebRTCService {
   }
 
   // イベントを発火
-  private emit(event: string, data?: any): void {
+  private emit(event: string, data?: unknown): void {
     const eventListeners = this.listeners.get(event);
     if (eventListeners) {
       eventListeners.forEach(callback => callback(data));

@@ -109,7 +109,14 @@ export class SocketHandler {
         origin: process.env.FRONTEND_URL || "http://localhost:5173",
         methods: ["GET", "POST"],
         credentials: true
-      }
+      },
+      // 接続安定性を向上させる設定
+      pingTimeout: 60000,          // 60秒のping timeout
+      pingInterval: 25000,         // 25秒間隔でping送信
+      upgradeTimeout: 10000,       // 10秒のアップグレードタイムアウト
+      allowUpgrades: true,         // WebSocketアップグレードを許可
+      maxHttpBufferSize: 1e6,      // 1MBのHTTPバッファサイズ
+      transports: ['websocket', 'polling'] // WebSocketを優先、フォールバックでpolling
     });
 
     this.setupSocketHandlers();

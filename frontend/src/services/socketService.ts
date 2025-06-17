@@ -172,13 +172,19 @@ export class SocketService {
           this.disconnect();
         }
 
-        // 新しいSocket.io接続を作成
+        // 新しいSocket.io接続を作成（安定性向上設定）
         this.socket = io(serverUrl, {
           autoConnect: true,
           reconnection: true,
-          reconnectionAttempts: 5,
-          reconnectionDelay: 1000,
-          timeout: 10000
+          reconnectionAttempts: 10,        // 再接続試行回数を増加
+          reconnectionDelay: 1000,         // 1秒の再接続遅延
+          reconnectionDelayMax: 5000,      // 最大5秒の再接続遅延
+          maxReconnectionAttempts: 10,     // 最大再接続試行回数
+          timeout: 20000,                  // 接続タイムアウトを20秒に増加
+          forceNew: true,                  // 新しい接続を強制
+          transports: ['websocket', 'polling'], // WebSocketを優先
+          upgrade: true,                   // アップグレードを許可
+          rememberUpgrade: true            // アップグレードを記憶
         });
 
         // 接続成功イベント
@@ -203,16 +209,33 @@ export class SocketService {
         this.socket.on(SOCKET_EVENTS.DISCONNECT, (reason: string) => {
           this.isConnected = false;
           console.log('🔌 Socket.io から切断されました:', reason);
+          
+          // ping timeout の場合の特別なログ
+          if (reason === 'ping timeout') {
+            console.warn('⚠️ Ping timeout による切断 - ネットワーク接続を確認してください');
+          }
+          
           // 接続状態変更イベントを発火
           this.emit('connection-state-changed', 'disconnected');
         });
 
-        // 再接続イベント
+        // 再接続試行イベント
+        this.socket.on('reconnect_attempt', (attemptNumber: number) => {
+          console.log(`🔄 再接続を試行中... (${attemptNumber}回目)`);
+        });
+
+        // 再接続成功イベント
         this.socket.on('reconnect', (attemptNumber: number) => {
           this.isConnected = true;
-          console.log(`🔄 Socket.io に再接続しました (試行回数: ${attemptNumber})`);
+          console.log(`✅ Socket.io に再接続しました (試行回数: ${attemptNumber})`);
           // 接続状態変更イベントを発火
           this.emit('connection-state-changed', 'connected');
+        });
+
+        // 再接続失敗イベント
+        this.socket.on('reconnect_failed', () => {
+          console.error('❌ Socket.io の再接続に失敗しました');
+          this.emit('connection-state-changed', 'disconnected');
         });
 
         // ルーム参加成功イベント

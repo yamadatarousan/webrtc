@@ -113,8 +113,25 @@ export class WebRTCService {
   async initiateCall(targetUserId: string): Promise<void> {
     if (!this.localStream) {
       console.error('❌ ローカルストリームがありません');
-      return;
+      throw new Error('ローカルストリームが設定されていないため、通話を開始できません');
     }
+
+    // ローカルストリームの有効性をチェック
+    const videoTracks = this.localStream.getVideoTracks();
+    const audioTracks = this.localStream.getAudioTracks();
+    
+    if (videoTracks.length === 0 && audioTracks.length === 0) {
+      console.error('❌ ローカルストリームにトラックがありません');
+      throw new Error('ローカルストリームにメディアトラックがありません');
+    }
+
+    console.log('📹 通話開始 - ローカルストリーム確認:', {
+      streamId: this.localStream.id,
+      videoTracks: videoTracks.length,
+      audioTracks: audioTracks.length,
+      activeVideoTracks: videoTracks.filter(t => t.readyState === 'live').length,
+      activeAudioTracks: audioTracks.filter(t => t.readyState === 'live').length
+    });
 
     // レースコンディション対策：既に接続処理中の場合は待機
     if (this.connectionOperations.has(targetUserId)) {
@@ -191,12 +208,19 @@ export class WebRTCService {
 
       await peerConnection.setLocalDescription(offer);
 
+      // 現在のユーザーIDを取得（nullチェック）
+      const currentUserId = socketService.getCurrentUserId();
+      if (!currentUserId) {
+        console.error('❌ 現在のユーザーIDが設定されていません');
+        throw new Error('ユーザーIDが未設定のため、Offerを送信できません');
+      }
+
       // Offerをシグナリングサーバー経由で送信
       socketService.sendMessage('offer', {
         type: 'offer',
         data: offer,
         toUserId: targetUserId,
-        fromUserId: socketService.getCurrentUserId(),
+        fromUserId: currentUserId,
       });
 
       console.log('📤 Offerを送信:', targetUserId);
@@ -218,11 +242,16 @@ export class WebRTCService {
     // ICE候補が生成されたとき
     peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
+        const currentUserId = socketService.getCurrentUserId();
+        if (!currentUserId) {
+          console.error('❌ ICE候補送信時にユーザーIDがありません');
+          return;
+        }
         socketService.sendMessage('ice-candidate', {
           type: 'ice-candidate',
           data: event.candidate,
           toUserId: userId,
-          fromUserId: socketService.getCurrentUserId(),
+          fromUserId: currentUserId,
         });
         console.log('📤 ICE候補を送信:', userId);
       }
@@ -408,12 +437,19 @@ export class WebRTCService {
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
 
+      // 現在のユーザーIDを取得（nullチェック）
+      const currentUserId = socketService.getCurrentUserId();
+      if (!currentUserId) {
+        console.error('❌ 現在のユーザーIDが設定されていません');
+        throw new Error('ユーザーIDが未設定のため、Answerを送信できません');
+      }
+
       // Answerをシグナリングサーバー経由で送信
       socketService.sendMessage('answer', {
         type: 'answer',
         data: answer,
         toUserId: fromUserId,
-        fromUserId: socketService.getCurrentUserId(),
+        fromUserId: currentUserId,
       });
 
       console.log('📤 Answerを送信:', fromUserId);

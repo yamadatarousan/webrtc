@@ -422,9 +422,12 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
       
       setLocalStream(stream);
       
-      // WebRTCサービスにローカルストリームを設定
+      // WebRTCサービスにローカルストリームを設定（接続開始前に必須）
       console.log('📹 WebRTCサービスにローカルストリームを設定...');
       webrtcService.setLocalStream(stream);
+      
+      // ストリーム設定後、少し待機してから接続処理を継続
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // ビデオ要素にストリームを設定 - DOM要素の存在を確認してから設定
       const setVideoStream = () => {
@@ -564,8 +567,14 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
   };
 
   const getConnectionStateText = () => {
+    const connectedUsersCount = connectedUsersRef.current.size;
+    const totalRemoteUsers = remoteUsers.length;
+    
     switch (connectionState) {
       case 'connected':
+        if (isInRoom && totalRemoteUsers > 0) {
+          return `✅ 接続中 (${connectedUsersCount}/${totalRemoteUsers}人)`;
+        }
         return '✅ 接続中';
       case 'connecting':
         return '🔄 接続中...';
@@ -579,135 +588,223 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-950 text-white relative overflow-hidden">
+      {/* 背景の装飾要素 */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-cyan-500/5 rounded-full blur-2xl"></div>
+      </div>
+      
       {/* ヘッダー */}
-      <div className="bg-white/10 backdrop-blur-md border-b border-white/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="relative bg-white/5 backdrop-blur-xl border-b border-white/10 shadow-2xl">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
-              🎥 WebRTC ビデオ通話
-            </h1>
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                  WebRTC Studio
+                </h1>
+                <p className="text-slate-400 text-sm mt-1">プロフェッショナルビデオ通話プラットフォーム</p>
+              </div>
+            </div>
             
             {/* 接続状態表示 */}
-            <div className={`px-4 py-2 rounded-full border backdrop-blur-sm ${getConnectionStateClass()}`}>
-              <span className="text-sm font-medium">
-                {getConnectionStateText()}
-              </span>
+            <div className={`px-6 py-3 rounded-2xl border backdrop-blur-xl shadow-lg transition-all duration-300 ${getConnectionStateClass()}`}>
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${connectionState === 'connected' ? 'bg-green-400' : connectionState === 'connecting' ? 'bg-yellow-400 animate-pulse' : 'bg-red-400'}`}></div>
+                <span className="text-sm font-semibold">
+                  {getConnectionStateText()}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="relative max-w-7xl mx-auto px-6 lg:px-8 py-12">
         {!isInRoom ? (
           /* ルーム参加フォーム */
-          <div className="max-w-md mx-auto">
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-8 shadow-2xl">
-              <div className="text-center mb-8">
-                <div className="mx-auto w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="max-w-lg mx-auto">
+            <div className="bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 p-10 shadow-2xl relative overflow-hidden">
+              {/* フォーム内の装飾要素 */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl"></div>
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-purple-500/10 rounded-full blur-xl"></div>
+              
+              <div className="relative text-center mb-10">
+                <div className="mx-auto w-24 h-24 bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500 rounded-3xl flex items-center justify-center mb-6 shadow-2xl transform rotate-3 hover:rotate-0 transition-transform duration-300">
+                  <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2">ルームに参加</h2>
-                <p className="text-gray-300">ルームIDと名前を入力してビデオ通話を開始</p>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-3">
+                  ルームに参加
+                </h2>
+                <p className="text-slate-300/80 text-lg">ルームIDと名前を入力してプロフェッショナルなビデオ通話を開始しましょう</p>
               </div>
               
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+              <div className="relative space-y-8">
+                <div className="group">
+                  <label className="block text-sm font-semibold text-slate-300 mb-3 group-focus-within:text-blue-400 transition-colors">
+                    <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M10.5 3L12 2l1.5 1M21 3l-1 1h-4l-1-1M21 3v4a2 2 0 01-2 2H5a2 2 0 01-2-2V3" />
+                    </svg>
                     ルームID
                   </label>
                   <input
                     type="text"
-                    placeholder="例: room1"
+                    placeholder="room-12345"
                     value={roomId}
                     onChange={(e) => setRoomId(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                    className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-400/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 backdrop-blur-xl transition-all duration-300 hover:bg-white/10 text-lg"
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                <div className="group">
+                  <label className="block text-sm font-semibold text-slate-300 mb-3 group-focus-within:text-purple-400 transition-colors">
+                    <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
                     あなたの名前
                   </label>
                   <input
                     type="text"
-                    placeholder="名前を入力"
+                    placeholder="田中太郎"
                     value={userName}
                     onChange={(e) => setUserName(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm"
+                    className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-400/70 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 backdrop-blur-xl transition-all duration-300 hover:bg-white/10 text-lg"
                   />
                 </div>
                 
                 <button
                   onClick={joinRoom}
                   disabled={connectionState !== 'connected'}
-                  className={`w-full py-3 px-6 rounded-xl font-medium text-white transition-all duration-200 ${
+                  className={`group relative w-full py-5 px-8 rounded-2xl font-bold text-white text-lg transition-all duration-300 overflow-hidden ${
                     connectionState === 'connected'
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transform hover:scale-105 shadow-lg hover:shadow-xl'
-                      : 'bg-gray-600 cursor-not-allowed opacity-50'
+                      ? 'bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 hover:from-blue-700 hover:via-purple-700 hover:to-cyan-700 transform hover:scale-[1.02] shadow-2xl hover:shadow-blue-500/25 active:scale-[0.98]'
+                      : 'bg-slate-700 cursor-not-allowed opacity-50'
                   }`}
                 >
-                  🚀 ルームに参加
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                  <div className="relative flex items-center justify-center space-x-3">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span>ルームに参加する</span>
+                  </div>
                 </button>
               </div>
             </div>
           </div>
         ) : (
           /* ビデオ通話画面 */
-          <div className="space-y-8">
+          <div className="space-y-6">
             {/* ルーム情報とコントロール */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-2">📍 ルーム: {roomId}</h2>
-                  <p className="text-gray-300">👥 {remoteUsers.length + 1}人が参加中</p>
+            <div className="bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 p-8 shadow-2xl">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center shadow-xl">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+                      {roomId}
+                    </h2>
+                    <div className="text-slate-300 text-lg">
+                      <span className="inline-flex items-center">
+                        <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse inline-block"></span>
+                        {remoteUsers.length + 1}人が参加中
+                      </span>
+                    </div>
+                  </div>
                 </div>
                 
                 {/* コントロールボタン */}
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-4">
                   <button
                     onClick={toggleAudio}
-                    className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 ${
+                    className={`group relative px-6 py-4 rounded-2xl font-bold transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg ${
                       isAudioEnabled
-                        ? 'bg-secondary text-white shadow-lg hover:shadow-xl'
-                        : 'bg-danger text-white shadow-lg hover:shadow-xl'
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-green-500/25 hover:shadow-green-500/40'
+                        : 'bg-gradient-to-r from-red-500 to-pink-500 text-white shadow-red-500/25 hover:shadow-red-500/40'
                     }`}
                   >
-                    {isAudioEnabled ? '🎤 音声ON' : '🔇 音声OFF'}
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        {isAudioEnabled ? (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                        ) : (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                        )}
+                      </svg>
+                      <span>{isAudioEnabled ? 'ミュート解除' : 'ミュート'}</span>
+                    </div>
                   </button>
+                  
                   <button
                     onClick={toggleVideo}
-                    className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 ${
+                    className={`group relative px-6 py-4 rounded-2xl font-bold transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg ${
                       isVideoEnabled
-                        ? 'bg-secondary text-white shadow-lg hover:shadow-xl'
-                        : 'bg-danger text-white shadow-lg hover:shadow-xl'
+                        ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-blue-500/25 hover:shadow-blue-500/40'
+                        : 'bg-gradient-to-r from-red-500 to-pink-500 text-white shadow-red-500/25 hover:shadow-red-500/40'
                     }`}
                   >
-                    {isVideoEnabled ? '📹 ビデオON' : '📷 ビデオOFF'}
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        {isVideoEnabled ? (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        ) : (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18 21l-7-4m0 0L5 21l.001-.001m6.999-4L18 21z" />
+                        )}
+                      </svg>
+                      <span>{isVideoEnabled ? 'カメラOFF' : 'カメラON'}</span>
+                    </div>
                   </button>
+                  
                   <button
                     onClick={leaveRoom}
-                    className="px-6 py-3 bg-danger text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl"
+                    className="group relative px-6 py-4 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-2xl font-bold transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-red-500/40"
                   >
-                    🚪 退出
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      <span>退出</span>
+                    </div>
                   </button>
                 </div>
               </div>
             </div>
 
             {/* ビデオグリッド */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
               {/* ローカルビデオ */}
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-4 shadow-xl">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">👤 {userName}</h3>
-                  <span className="px-3 py-1 bg-secondary/20 text-secondary text-xs font-medium rounded-full">
-                    あなた
-                  </span>
+              <div className="group bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden">
+                {/* カード内の装飾要素 */}
+                <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 rounded-full blur-xl"></div>
+                
+                <div className="relative flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">{userName}</h3>
+                  </div>
+                  <div className="px-4 py-2 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/30 text-blue-300 text-sm font-bold rounded-xl backdrop-blur-sm">
+                    You
+                  </div>
                 </div>
-                <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-900 border-2 border-secondary/30">
+                
+                <div className="relative aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 shadow-2xl border border-white/10">
                   <video
                     ref={localVideoRef}
                     autoPlay
@@ -716,17 +813,36 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
                     className="w-full h-full object-cover"
                   />
                   {!isVideoEnabled && (
-                    <div className="absolute inset-0 bg-gray-800 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
                       <div className="text-center">
-                        <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
-                          <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                        <div className="w-20 h-20 bg-gradient-to-r from-slate-600 to-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl">
+                          <svg className="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18 21l-7-4m0 0L5 21l.001-.001m6.999-4L18 21z" />
                           </svg>
                         </div>
-                        <p className="text-gray-400 text-sm">カメラOFF</p>
+                        <p className="text-slate-300 font-semibold">カメラがオフです</p>
+                        <p className="text-slate-400 text-sm mt-1">カメラをオンにして参加者に表示</p>
                       </div>
                     </div>
                   )}
+                  
+                  {/* ステータスインジケーター */}
+                  <div className="absolute bottom-4 left-4 flex space-x-2">
+                    <div className={`px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm ${
+                      isAudioEnabled 
+                        ? 'bg-green-500/80 text-white' 
+                        : 'bg-red-500/80 text-white'
+                    }`}>
+                      {isAudioEnabled ? '🎤' : '🔇'}
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm ${
+                      isVideoEnabled 
+                        ? 'bg-blue-500/80 text-white' 
+                        : 'bg-red-500/80 text-white'
+                    }`}>
+                      {isVideoEnabled ? '📹' : '📷'}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -734,14 +850,25 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
               {Array.from(remoteStreams.entries()).map(([userId, stream]) => {
                 const user = remoteUsers.find(u => u.id === userId);
                 return (
-                  <div key={userId} className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-4 shadow-xl">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-white">👤 {user?.name || 'ユーザー'}</h3>
-                      <span className="px-3 py-1 bg-primary/20 text-primary text-xs font-medium rounded-full">
-                        リモート
-                      </span>
+                  <div key={userId} className="group bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 shadow-2xl hover:shadow-purple-500/10 transition-all duration-300 relative overflow-hidden">
+                    {/* カード内の装飾要素 */}
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-purple-500/10 rounded-full blur-xl"></div>
+                    
+                    <div className="relative flex items-center justify-between mb-6">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-white">{user?.name || 'ユーザー'}</h3>
+                      </div>
+                      <div className="px-4 py-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-300 text-sm font-bold rounded-xl backdrop-blur-sm">
+                        Remote
+                      </div>
                     </div>
-                    <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-900 border-2 border-primary/30">
+                    
+                    <div className="relative aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 shadow-2xl border border-white/10">
                       <video
                         ref={(video) => {
                           if (video) {
@@ -760,41 +887,141 @@ export const VideoCall: React.FC<VideoCallProps> = () => {
                         playsInline
                         className="w-full h-full object-cover"
                       />
+                      
+                      {/* 接続状態インジケーター */}
+                      <div className="absolute top-4 right-4">
+                        <div className="px-3 py-1 bg-green-500/80 text-white text-xs font-bold rounded-full backdrop-blur-sm flex items-center space-x-1">
+                          <div className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></div>
+                          <span>接続中</span>
+                        </div>
+                      </div>
+                      
+                      {/* ユーザー名オーバーレイ */}
+                      <div className="absolute bottom-4 left-4 right-4">
+                        <div className="bg-black/50 backdrop-blur-sm rounded-xl p-3">
+                          <p className="text-white font-semibold text-sm">{user?.name || 'ユーザー'}</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
 
-            {/* 参加者一覧 */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6">
-              <h3 className="text-xl font-bold text-white mb-4">👥 参加者一覧</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div className="flex items-center space-x-3 p-3 bg-secondary/10 rounded-xl border border-secondary/20">
-                  <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-                    <span className="text-white font-medium text-sm">
-                      {userName.charAt(0).toUpperCase()}
-                    </span>
+            {/* 参加者一覧とチャット */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 参加者一覧 */}
+              <div className="bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 p-8 shadow-2xl">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
                   </div>
                   <div>
-                    <p className="text-white font-medium">{userName}</p>
-                    <p className="text-secondary text-sm">あなた</p>
+                    <h3 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">参加者</h3>
+                    <p className="text-slate-300">{remoteUsers.length + 1}人がアクティブ</p>
                   </div>
                 </div>
                 
-                {remoteUsers.map(user => (
-                  <div key={user.id} className="flex items-center space-x-3 p-3 bg-primary/10 rounded-xl border border-primary/20">
-                    <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-                      <span className="text-white font-medium text-sm">
-                        {user.name.charAt(0).toUpperCase()}
-                      </span>
+                <div className="space-y-4">
+                  {/* 自分 */}
+                  <div className="flex items-center space-x-4 p-4 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-2xl border border-blue-500/20 backdrop-blur-sm">
+                    <div className="relative">
+                      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg">
+                        <span className="text-white font-bold text-lg">
+                          {userName.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
                     </div>
-                    <div>
-                      <p className="text-white font-medium">{user.name}</p>
-                      <p className="text-primary text-sm">リモートユーザー</p>
+                    <div className="flex-1">
+                      <p className="text-white font-semibold text-lg">{userName}</p>
+                      <p className="text-blue-300 text-sm font-medium">あなた (ホスト)</p>
+                    </div>
+                    <div className="flex space-x-1">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center ${isAudioEnabled ? 'bg-green-500' : 'bg-red-500'}`}>
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          {isAudioEnabled ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                          )}
+                        </svg>
+                      </div>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center ${isVideoEnabled ? 'bg-blue-500' : 'bg-red-500'}`}>
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          {isVideoEnabled ? (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          ) : (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18 21l-7-4m0 0L5 21l.001-.001m6.999-4L18 21z" />
+                          )}
+                        </svg>
+                      </div>
                     </div>
                   </div>
-                ))}
+                  
+                  {/* リモートユーザー */}
+                  {remoteUsers.map(user => (
+                    <div key={user.id} className="flex items-center space-x-4 p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-2xl border border-purple-500/20 backdrop-blur-sm">
+                      <div className="relative">
+                        <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
+                          <span className="text-white font-bold text-lg">
+                            {user.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-white font-semibold text-lg">{user.name}</p>
+                        <p className="text-purple-300 text-sm font-medium">参加者</p>
+                      </div>
+                      <div className="flex space-x-1">
+                        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                          </svg>
+                        </div>
+                        <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* チャットエリア */}
+              <div className="bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 p-8 shadow-2xl">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">チャット</h3>
+                      <p className="text-slate-300">メッセージを送信</p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => setIsChatVisible(!isChatVisible)}
+                    className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-2xl font-bold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-cyan-500/25"
+                  >
+                    {isChatVisible ? 'チャットを閉じる' : 'チャットを開く'}
+                  </button>
+                </div>
+                
+                <div className="text-center py-12">
+                  <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  <p className="text-slate-400 text-lg">チャットボタンを押してメッセージを送信</p>
+                </div>
               </div>
             </div>
           </div>
